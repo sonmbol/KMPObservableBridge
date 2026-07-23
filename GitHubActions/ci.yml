@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  swift:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Swift tests
+        run: swift test
+      - name: Strict concurrency
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - name: Documentation
+        run: |
+          xcodebuild docbuild \
+            -scheme KMPObservableBridge \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Validate package and whitespace
+        run: |
+          swift package dump-package > /dev/null
+          git diff --check
+      - name: API compatibility
+        env:
+          BASELINE_REF: ${{ vars.API_BASELINE_REF }}
+        run: ./Scripts/check-api.sh
+
+  apple-platforms:
+    runs-on: macos-15
+    strategy:
+      matrix:
+        destination:
+          - "generic/platform=iOS Simulator"
+          - "generic/platform=tvOS Simulator"
+          - "generic/platform=watchOS Simulator"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          xcodebuild build \
+            -scheme KMPObservableBridge \
+            -destination '${{ matrix.destination }}' \
+            CODE_SIGNING_ALLOWED=NO
+
+  daily-pulse:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build generated SKIE framework
+        working-directory: Examples/DailyPulse
+        run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
+      - name: Build SwiftUI integration app
+        working-directory: Examples/DailyPulse/iosApp
+        run: |
+          xcodebuild build \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -destination 'generic/platform=iOS Simulator'

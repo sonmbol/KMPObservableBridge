@@ -1,0 +1,14 @@
+*.iml
+.gradle
+.idea
+.build
+.swiftpm
+.DS_Store
+build
+captures
+.externalNativeBuild
+.cxx
+local.properties
+xcuserdata
+DerivedData
+*.xcuserstate
