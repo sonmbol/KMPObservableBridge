@@ -233,7 +233,7 @@ private struct BridgeExampleContentView: View {
                 }
             }
 
-            Text(example.messageState.value)
+            Text(example.messageState)
                 .font(.subheadline)
                 .foregroundColor(.secondary)
 
@@ -288,7 +288,7 @@ private struct CallbackAdapterExampleView: View {
                         .foregroundColor(.secondary)
                 }
 
-                Text(example.callbackState.value)
+                Text(example.callbackState)
                     .font(.headline)
 
                 HStack {
@@ -334,7 +334,7 @@ private struct CombineAdapterExampleView: View {
                         .foregroundColor(.secondary)
                 }
 
-                Text(example.callbackState.value)
+                Text(example.callbackState)
                     .font(.headline)
 
                 HStack {

@@ -345,6 +345,11 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
+    func testTextAcceptsStringValuePropertyWithoutExplicitValueRead() {
+        let message = ValueStream("Ready")
+        _ = Text(message)
+    }
+
     func testHeterogeneousStateKeyPathConvenience() {
         let ownedModel = StreamModel()
         let observedModel = StreamModel()

@@ -224,6 +224,12 @@ viewModel.state.isLoading
 viewModel.state.profile
 ```
 
+SwiftUI `Text` also accepts a string-valued property directly:
+
+```swift
+Text(viewModel.messageState)
+```
+
 The flow itself is still returned when assigning the whole property:
 
 ```swift

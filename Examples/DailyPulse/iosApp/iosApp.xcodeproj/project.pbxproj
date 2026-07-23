@@ -13,6 +13,8 @@
 		7555FF83242A565900829871 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7555FF82242A565900829871 /* ContentView.swift */; };
 		94A532323011F47B0027F770 /* KMPObservableBridge in Frameworks */ = {isa = PBXBuildFile; productRef = 94A532313011F47B0027F770 /* KMPObservableBridge */; };
 		94A532343011F92D0027F770 /* BridgeExampleCombineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */; };
+		94A532363011FA2D0027F770 /* KMPObservableBridgeSKIE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */; };
+		94A532383011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -36,6 +38,8 @@
 		7555FF82242A565900829871 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7555FF8C242A565B00829871 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeExampleCombineAdapter.swift; sourceTree = "<group>"; };
+		94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridgeSKIE.swift; sourceTree = "<group>"; };
+		94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridgeNativeCoroutines.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +84,8 @@
 			children = (
 				058557BA273AAA24004C7B11 /* Assets.xcassets */,
 				94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */,
+				94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */,
+				94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */,
 				7555FF82242A565900829871 /* ContentView.swift */,
 				7555FF8C242A565B00829871 /* Info.plist */,
 				2152FB032600AC8F00CF470E /* iOSApp.swift */,
@@ -196,6 +202,8 @@
 			files = (
 				2152FB042600AC8F00CF470E /* iOSApp.swift in Sources */,
 				94A532343011F92D0027F770 /* BridgeExampleCombineAdapter.swift in Sources */,
+				94A532363011FA2D0027F770 /* KMPObservableBridgeSKIE.swift in Sources */,
+				94A532383011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift in Sources */,
 				7555FF83242A565900829871 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -2,7 +2,6 @@ import Combine
 import shared
 import KMPObservableBridge
 
-extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
 extension BridgeCallbackState: @retroactive KMPValueProperty {}
 
 extension BridgeExampleViewModel {

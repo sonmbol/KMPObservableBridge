@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import SwiftUI
 
 /// A KMP wrapper that exposes its current value through a `value` property.
 ///
@@ -15,6 +16,17 @@ public protocol KMPValueProperty {
 public extension KMPValueProperty {
     subscript<Member>(dynamicMember keyPath: KeyPath<Value, Member>) -> Member {
         value[keyPath: keyPath]
+    }
+}
+
+public extension Text {
+    /// Creates text from a scalar string held by a KMP value property.
+    ///
+    /// This complements dynamic-member lookup, which only applies when the
+    /// emitted value has a nested member such as `state.isLoading`.
+    init<Property>(_ property: Property)
+    where Property: KMPValueProperty, Property.Value == String {
+        self.init(verbatim: property.value)
     }
 }
 
