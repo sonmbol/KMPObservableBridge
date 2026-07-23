@@ -20,6 +20,19 @@ private var profile
 Kotlin remains the source of truth. The bridge observes emissions but never
 copies state.
 
+For a model that exposes one canonical KMP-NativeCoroutines flow, opt into
+automatic observation once:
+
+```swift
+extension ProfileViewModel: @retroactive KMPNativeObservable {}
+
+@KMPStateObject
+private var profile = ProfileViewModel()
+```
+
+The explicit `state:` form remains the universal option. The automatic form
+removes the key path without requiring a framework-owned Kotlin superclass.
+
 ## Topics
 
 ### Ownership
@@ -41,4 +54,6 @@ copies state.
 - ``KMPObservation``
 - ``KMPUpdatePolicy``
 - ``KMPObservationFailurePolicy``
+- ``KMPNativeObservable``
+- ``KMPNativeFlow``
 - ``KMPValueProperty``

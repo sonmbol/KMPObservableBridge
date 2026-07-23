@@ -16,9 +16,52 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         storage
     }
 
+    public init(
+        wrappedValue viewModel: ViewModel,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) where ViewModel: KMPNativeObservable {
+        self.init(
+            viewModel,
+            adapterArray: [.automatic()],
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
+    public init(
+        _ viewModel: ViewModel,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) where ViewModel: KMPNativeObservable {
+        self.init(
+            viewModel,
+            adapterArray: [.automatic()],
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
     public init<Sequence: AsyncSequence>(
         wrappedValue viewModel: ViewModel,
         state: KeyPath<ViewModel, Sequence>,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) {
+        self.init(
+            viewModel,
+            state: state,
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
+    public init<Output, Failure: Error, Unit>(
+        wrappedValue viewModel: ViewModel,
+        state: KeyPath<
+            ViewModel,
+            KMPNativeFlow<Output, Failure, Unit>
+        >,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
@@ -67,6 +110,23 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         self.init(
             viewModel,
             adapterArray: [.asyncSequence(state)],
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
+    public init<Output, Failure: Error, Unit>(
+        _ viewModel: ViewModel,
+        state: KeyPath<
+            ViewModel,
+            KMPNativeFlow<Output, Failure, Unit>
+        >,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) {
+        self.init(
+            viewModel,
+            adapterArray: [.nativeFlow(state)],
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )

@@ -1,6 +1,8 @@
 package com.petros.efthymiou.dailypulse.examples
 
 import com.petros.efthymiou.dailypulse.BaseViewModel
+import com.rickclephas.kmp.nativecoroutines.NativeCoroutinesState
+import com.rickclephas.kmp.nativecoroutines.asNativeFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,6 +15,15 @@ class BridgeExampleViewModel: BaseViewModel() {
 
     private val _messageState = MutableStateFlow("Ready")
     val messageState: StateFlow<String> get() = _messageState.asStateFlow()
+
+    @NativeCoroutinesState
+    val nativeMessageState: StateFlow<String> = _messageState.asStateFlow()
+
+    // Explicitly exported for this mixed SKIE + NativeCoroutines fixture.
+    // These mirror the value/flow pair produced by @NativeCoroutinesState.
+    val nativeMessageValue: String get() = _messageState.value
+    val nativeMessageFlow get() = _messageState.asNativeFlow(scope)
+    val kmpObservationFlow get() = nativeMessageFlow
 
     val callbackState = BridgeCallbackState("Callback ready")
 

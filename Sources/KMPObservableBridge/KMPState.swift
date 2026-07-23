@@ -2,6 +2,34 @@ import Combine
 import Foundation
 import SwiftUI
 
+/// The structural function signature exported by KMP-NativeCoroutines as
+/// `NativeFlow`.
+///
+/// Defining the signature locally lets the bridge observe NativeCoroutines
+/// without making it a required package dependency.
+public typealias KMPNativeFlow<Output, Failure: Error, Unit> = (
+    _ onItem: @escaping (Output, @escaping () -> Unit, Unit) -> Unit,
+    _ onComplete: @escaping (Failure?, Unit) -> Unit,
+    _ onCancelled: @escaping (Failure, Unit) -> Unit
+) -> () -> Unit
+
+/// Opt-in automatic observation for a Kotlin model that exposes one canonical
+/// KMP-NativeCoroutines invalidation flow.
+///
+/// The flow's elements are not cached by Swift. They only tell SwiftUI that the
+/// model's Kotlin-owned properties should be read again.
+public protocol KMPNativeObservable: AnyObject {
+    associatedtype KMPObservationOutput
+    associatedtype KMPObservationFailure: Error
+    associatedtype KMPObservationUnit
+
+    var kmpObservationFlow: KMPNativeFlow<
+        KMPObservationOutput,
+        KMPObservationFailure,
+        KMPObservationUnit
+    > { get }
+}
+
 /// A KMP wrapper that exposes its current value through a `value` property.
 ///
 /// Conformance only provides dynamic-member syntax for nested reads. The
@@ -100,6 +128,48 @@ public struct KMPState<ViewModel: AnyObject> {
         _ keyPath: KeyPath<ViewModel, Sequence>
     ) -> Self {
         asyncSequence { $0[keyPath: keyPath] }
+    }
+
+    /// Observes a KMP-NativeCoroutines `NativeFlow` directly.
+    ///
+    /// Items trigger view invalidation, completion errors use the configured
+    /// failure policy, and lifecycle cancellation is propagated to Kotlin.
+    public static func nativeFlow<Output, Failure: Error, Unit>(
+        _ keyPath: KeyPath<
+            ViewModel,
+            KMPNativeFlow<Output, Failure, Unit>
+        >
+    ) -> Self {
+        Self { viewModel, notify, reportError in
+            let flow = viewModel[keyPath: keyPath]
+            let cancel = flow(
+                { _, next, unit in
+                    notify()
+                    _ = next()
+                    return unit
+                },
+                { error, unit in
+                    if let error {
+                        reportError(error)
+                    }
+                    return unit
+                },
+                { _, unit in
+                    // Kotlin cancellation is an expected lifecycle event.
+                    return unit
+                }
+            )
+
+            return KMPObservation {
+                _ = cancel()
+            }
+        }
+    }
+
+    /// Uses the canonical flow supplied by an opt-in observable model.
+    public static func automatic() -> Self
+    where ViewModel: KMPNativeObservable {
+        .nativeFlow(\.kmpObservationFlow)
     }
 
     /// Observes an `AsyncSequence` produced by an interoperability adapter.

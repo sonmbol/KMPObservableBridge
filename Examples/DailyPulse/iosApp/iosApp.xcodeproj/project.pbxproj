@@ -191,7 +191,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon\n";
+			shellScript = "export JAVA_HOME=\"$(/usr/libexec/java_home -v 17)\"\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

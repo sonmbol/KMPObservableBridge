@@ -79,6 +79,34 @@ final class KMPObservableBridgeTests: XCTestCase {
         case failed
     }
 
+    private final class NativeFlowModel: KMPNativeObservable {
+        typealias Flow = KMPNativeFlow<Int, TestError, Void>
+
+        private var onItem: ((Int, @escaping () -> Void, Void) -> Void)?
+        private var onComplete: ((TestError?, Void) -> Void)?
+        private(set) var cancellationCount = 0
+
+        lazy var state: Flow = { [weak self] onItem, onComplete, _ in
+            self?.onItem = onItem
+            self?.onComplete = onComplete
+            return { [weak self] in
+                self?.cancellationCount += 1
+            }
+        }
+
+        var kmpObservationFlow: Flow {
+            state
+        }
+
+        func emit(_ value: Int) {
+            onItem?(value, {}, ())
+        }
+
+        func fail() {
+            onComplete?(.failed, ())
+        }
+    }
+
     func testObservationCancellationIsIdempotent() {
         var cancellationCount = 0
         let observation = KMPObservation {
@@ -129,6 +157,47 @@ final class KMPObservableBridgeTests: XCTestCase {
         await settleMainActorTasks()
         XCTAssertEqual(receivedError, .failed)
         withExtendedLifetime(cancellable) {}
+    }
+
+    func testNativeFlowInvalidatesReportsFailureAndCancels() async {
+        let model = NativeFlowModel()
+        var receivedChanges = 0
+        var receivedError: TestError?
+        var store: KMPViewModelStore<NativeFlowModel>? = KMPViewModelStore(
+            model,
+            states: [.nativeFlow(\.state)],
+            updatePolicy: .immediate,
+            failurePolicy: .custom { error in
+                receivedError = error as? TestError
+            },
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        let cancellable = store?.objectWillChange.sink {
+            receivedChanges += 1
+        }
+
+        model.emit(1)
+        await settleMainActorTasks()
+        XCTAssertEqual(receivedChanges, 1)
+
+        model.fail()
+        await settleMainActorTasks()
+        XCTAssertEqual(receivedError, .failed)
+
+        store = nil
+        XCTAssertEqual(model.cancellationCount, 1)
+        withExtendedLifetime(cancellable) {}
+    }
+
+    func testAutomaticNativeObservableWrappersNeedNoStateArgument() {
+        let ownedModel = NativeFlowModel()
+        let observedModel = NativeFlowModel()
+        let owned = KMPStateObject(wrappedValue: ownedModel)
+        let observed = KMPObservedObject(observedModel)
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
     func testRebindingCancelsOldSourceAndSuppressesStaleEmissions() async {

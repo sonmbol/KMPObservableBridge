@@ -2,12 +2,17 @@ plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.skie)
-    kotlin("plugin.serialization") version "1.9.20"
+    alias(libs.plugins.nativeCoroutines)
+    kotlin("plugin.serialization") version "1.9.10"
     alias(libs.plugins.sqlDelight)
 }
 
 @OptIn(org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi::class)
 kotlin {
+    sourceSets.all {
+        languageSettings.optIn("kotlin.experimental.ExperimentalObjCName")
+    }
+
     targetHierarchy.default()
 
     androidTarget {
@@ -25,6 +30,7 @@ kotlin {
     ).forEach {
         it.binaries.framework {
             baseName = "shared"
+            export(libs.native.coroutines.core)
         }
     }
 
@@ -32,6 +38,7 @@ kotlin {
         val commonMain by getting {
             dependencies {
                 implementation(libs.kotlinx.coroutines.core)
+                api(libs.native.coroutines.core)
                 implementation(libs.ktor.client.core)
                 implementation(libs.ktor.serialization.kotlinx.json)
                 implementation(libs.ktor.client.content.negotiation)

@@ -23,6 +23,38 @@ Keywords: SwiftUI, Kotlin Multiplatform, KMP, KMM, StateFlow, coroutines,
 Kotlin/Native, iOS, SKIE, KMP-NativeCoroutines, ObservableObject, Observation,
 MVVM, MVI.
 
+## Remove the adapter layer
+
+Without a lifecycle-aware bridge, every screen commonly grows another Swift
+ViewModel that copies Kotlin state and manually owns collection:
+
+```swift
+final class ProfileAdapter: ObservableObject {
+    @Published private(set) var state: ProfileState
+    private var observation: Task<Void, Never>?
+
+    // Collection, cancellation, error delivery, rebinding, and disposal
+    // must remain correct for every screen.
+}
+```
+
+With KMPObservableBridge, SwiftUI owns or observes the real Kotlin ViewModel:
+
+```swift
+@KMPStateObject(
+    wrappedValue: ProfileViewModel(),
+    state: \.state
+)
+private var profile
+```
+
+No shadow `@Published` state, duplicated action methods, or screen-specific
+adapter object is required.
+
+<p align="center">
+  <img src="Assets/demo.png" width="300" alt="DailyPulse running KMPObservableBridge in SwiftUI">
+</p>
+
 ## The common case
 
 Most screens need one immutable Kotlin `StateFlow`. With SKIE, setup takes
@@ -391,8 +423,8 @@ only SKIE.
 
 ### KMP-NativeCoroutines
 
-For `@NativeCoroutinesState`, observe the generated flow and read its separate
-current-value property:
+KMPObservableBridge understands the exported `NativeFlow` signature directly.
+The application does not need `asyncSequence(for:)` or an adapter closure:
 
 ```swift
 @KMPStateObject(
@@ -401,16 +433,72 @@ current-value property:
 )
 private var profile
 
-let state = profile.profileState
+let state = profile.profileStateValue
 ```
 
-If the sequence is produced by a helper:
+This direct path keeps the bridge core independent of the NativeCoroutines
+Swift package while propagating cancellation to the Kotlin collection.
 
-```swift
-adapters: .asyncSequence { viewModel in
-    asyncSequence(for: viewModel.profileStateNative)
+### Optional automatic ViewModel observation
+
+Automatic observation requires an explicit Kotlin contract; Swift cannot
+discover arbitrary flow properties through Objective-C reflection. Expose one
+canonical NativeFlow that emits whenever any UI-facing state changes:
+
+```kotlin
+class ProfileViewModel : BaseViewModel() {
+    private val _state = MutableStateFlow(ProfileState())
+
+    val stateValue: ProfileState get() = _state.value
+    val kmpObservationFlow get() = _state.asNativeFlow(scope)
 }
 ```
+
+Conform the generated model once in the application target:
+
+```swift
+import shared
+import KMPObservableBridge
+
+extension ProfileViewModel: @retroactive KMPNativeObservable {}
+```
+
+The property-wrapper call then matches native SwiftUI:
+
+```swift
+@KMPStateObject
+private var profile = ProfileViewModel()
+```
+
+For a model supplied by a parent, use the same contract without transferring
+ownership:
+
+```swift
+struct ProfileView: View {
+    @KMPObservedObject private var profile: ProfileViewModel
+
+    init(profile: ProfileViewModel) {
+        _profile = KMPObservedObject(wrappedValue: profile)
+    }
+}
+```
+
+`KMPStateObject` owns its model and can invoke `KMPDisposable.dispose()` or an
+explicit `dispose:` closure. `KMPObservedObject` only observes and rebinds; it
+never disposes an externally owned Kotlin model.
+
+`KMPNativeObservable` does not copy emitted values or turn Kotlin properties
+into writable Swift state. Its canonical flow only invalidates SwiftUI; reads
+and mutations still go directly to the Kotlin model.
+
+Choose the explicit `state:` form for arbitrary existing models and the
+automatic form when the shared model can expose this convention. Achieving
+zero-configuration observation without either contract would require a Kotlin
+runtime/base class such as KMP-ObservableViewModel; the bridge deliberately
+does not pretend Swift reflection can provide that behavior.
+
+`Examples/DailyPulse` compiles both the SKIE and KMP-NativeCoroutines paths
+against a generated Kotlin framework.
 
 ### Callback or CFlow adapters
 

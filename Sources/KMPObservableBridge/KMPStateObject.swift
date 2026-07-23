@@ -14,6 +14,25 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         storage
     }
 
+    /// Creates an opt-in automatically observable Kotlin model.
+    public init(
+        wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) where ViewModel: KMPNativeObservable {
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                makeViewModel(),
+                states: [.automatic()],
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose
+            )
+        )
+    }
+
     /// Creates a model and observes its primary state stream.
     public init<Sequence: AsyncSequence>(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
@@ -26,6 +45,29 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
                 states: [.asyncSequence(state)],
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose
+            )
+        )
+    }
+
+    /// Creates a model and observes a KMP-NativeCoroutines flow directly.
+    public init<Output, Failure: Error, Unit>(
+        wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
+        state: KeyPath<
+            ViewModel,
+            KMPNativeFlow<Output, Failure, Unit>
+        >,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) {
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                makeViewModel(),
+                states: [.nativeFlow(state)],
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -88,6 +130,30 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
             wrappedValue: KMPViewModelStore(
                 makeInjector()[keyPath: keyPath],
                 states: [.asyncSequence(state)],
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose
+            )
+        )
+    }
+
+    /// Resolves a model and observes a KMP-NativeCoroutines flow directly.
+    public init<Injector, Output, Failure: Error, Unit>(
+        injector makeInjector: @autoclosure @escaping () -> Injector,
+        viewModel keyPath: KeyPath<Injector, ViewModel>,
+        state: KeyPath<
+            ViewModel,
+            KMPNativeFlow<Output, Failure, Unit>
+        >,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) {
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                makeInjector()[keyPath: keyPath],
+                states: [.nativeFlow(state)],
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,

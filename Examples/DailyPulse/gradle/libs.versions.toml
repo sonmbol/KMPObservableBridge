@@ -6,6 +6,7 @@ compose-compiler = "1.5.3"
 compose-material3 = "1.1.2"
 androidx-activityCompose = "1.7.2"
 kotlinxCoroutinesCore = "1.7.3"
+nativeCoroutines = "1.0.0-ALPHA-18"
 lifecycleViewmodelAndroid = "2.6.2"
 ktorClient = "2.3.5"
 kotlinxDatetime = "0.4.1"
@@ -22,6 +23,7 @@ compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview"
 compose-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "compose" }
 compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "compose-material3" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
+native-coroutines-core = { module = "com.rickclephas.kmp:kmp-nativecoroutines-core", version.ref = "nativeCoroutines" }
 androidx-lifecycle-viewmodel-android = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-android", version.ref = "lifecycleViewmodelAndroid" }
 
 ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "ktorClient" }
@@ -42,6 +44,7 @@ sql-android-driver = { module = "app.cash.sqldelight:android-driver", version.re
 
 [plugins]
 skie = { id = "co.touchlab.skie", version = "0.8.4" }
+nativeCoroutines = { id = "com.rickclephas.kmp.nativecoroutines", version.ref = "nativeCoroutines" }
 androidApplication = { id = "com.android.application", version.ref = "agp" }
 androidLibrary = { id = "com.android.library", version.ref = "agp" }
 kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }

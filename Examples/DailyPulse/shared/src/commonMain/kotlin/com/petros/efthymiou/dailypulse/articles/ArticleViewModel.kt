@@ -17,8 +17,20 @@ class ArticleViewModel(
     }
     fun getArticle() {
         scope.launch {
-            val articles = articlesUseCase.getArticles()
-            _articleState.emit(ArticleState(articles = articles))
+            runCatching {
+                articlesUseCase.getArticles()
+            }.fold(
+                onSuccess = { articles ->
+                    _articleState.emit(ArticleState(articles = articles))
+                },
+                onFailure = { error ->
+                    _articleState.emit(
+                        ArticleState(
+                            error = error.message ?: "Unable to load articles",
+                        ),
+                    )
+                },
+            )
         }
     }
 

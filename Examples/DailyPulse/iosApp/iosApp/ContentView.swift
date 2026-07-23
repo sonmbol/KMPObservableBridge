@@ -11,16 +11,16 @@ extension BaseViewModel: @retroactive KMPDisposable {
 struct ContentView: View {
     var body: some View {
         TabView {
-            ArticleInjectorExampleView()
-                .tabItem {
-                    Image(systemName: "newspaper")
-                    Text("Injector")
-                }
-
             DirectStateObjectExampleView()
                 .tabItem {
                     Image(systemName: "bolt")
                     Text("Direct")
+                }
+
+            ArticleInjectorExampleView()
+                .tabItem {
+                    Image(systemName: "newspaper")
+                    Text("Injector")
                 }
 
             ObservedObjectExampleView()
@@ -39,6 +39,12 @@ struct ContentView: View {
                 .tabItem {
                     Image(systemName: "antenna.radiowaves.left.and.right")
                     Text("Combine")
+                }
+
+            NativeCoroutinesExampleView()
+                .tabItem {
+                    Image(systemName: "point.3.connected.trianglepath.dotted")
+                    Text("Native")
                 }
         }
     }
