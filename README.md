@@ -1,5 +1,7 @@
 # KMPObservableBridge
 
+![KMPObservableBridge — Kotlin State. Native SwiftUI.](Assets/social-preview.png)
+
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/docs/multiplatform.html)
 [![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-lightgrey)](Package.swift)
@@ -113,8 +115,38 @@ flows emit in the same main-actor turn.
 
 ## Installation
 
-Add this repository as a Swift Package dependency and link the
-`KMPObservableBridge` product to the iOS target. The package supports:
+### Xcode
+
+1. Select **File → Add Package Dependencies…**
+2. Enter `https://github.com/sonmbol/KMPObservableBridge.git`.
+3. Choose **Up to Next Major Version** from `1.0.0`.
+4. Add the `KMPObservableBridge` product to your application target.
+
+Then add `import KMPObservableBridge` to your SwiftUI view.
+
+### Package.swift
+
+```swift
+dependencies: [
+    .package(
+        url: "https://github.com/sonmbol/KMPObservableBridge.git",
+        from: "1.0.0"
+    ),
+],
+targets: [
+    .target(
+        name: "YourApp",
+        dependencies: [
+            .product(
+                name: "KMPObservableBridge",
+                package: "KMPObservableBridge"
+            ),
+        ]
+    ),
+]
+```
+
+The package supports:
 
 - iOS 14+
 - macOS 11+
@@ -474,6 +506,19 @@ swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 `Examples/DailyPulse` contains a local Swift Package integration. The package
 product includes only `Sources/KMPObservableBridge`; the example application is
 not shipped to consumers.
+
+## Used in production
+
+Using KMPObservableBridge in a shipped application? Open a
+[Showcase discussion](https://github.com/sonmbol/KMPObservableBridge/discussions)
+with your app name, link, and integration. Production users may be listed here
+with permission.
+
+Use [Discussions](https://github.com/sonmbol/KMPObservableBridge/discussions)
+for integration help and [Issues](https://github.com/sonmbol/KMPObservableBridge/issues)
+for reproducible defects. See [CONTRIBUTING.md](CONTRIBUTING.md) before
+submitting changes and [SECURITY.md](SECURITY.md) for private vulnerability
+reporting.
 
 ## License
 

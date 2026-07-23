@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a reproducible bridge, lifecycle, concurrency, or interoperability defect.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: KMPObservableBridge version
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: input
+    id: toolchain
+    attributes:
+      label: Swift, Xcode, and Kotlin versions
+      placeholder: Swift 5.10, Xcode 16.2, Kotlin 2.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: integration
+    attributes:
+      label: Integration
+      options:
+        - SKIE
+        - KMP-NativeCoroutines
+        - Raw generated Kotlin API
+        - Callback/CFlow
+        - Combine
+        - Custom adapter
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Include expected behavior, actual behavior, and ownership/lifecycle details.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Link a repository or paste the smallest complete reproduction.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or diagnostics
+      description: Remove secrets and personal data before submitting.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and discussions.
+          required: true
+        - label: The reproduction contains no credentials or private data.
+          required: true
