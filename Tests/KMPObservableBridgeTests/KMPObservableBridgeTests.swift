@@ -85,6 +85,9 @@ final class KMPObservableBridgeTests: XCTestCase {
         private var onItem: ((Int, @escaping () -> Void, Void) -> Void)?
         private var onComplete: ((TestError?, Void) -> Void)?
         private(set) var cancellationCount = 0
+        var isObserved: Bool {
+            onItem != nil
+        }
 
         lazy var state: Flow = { [weak self] onItem, onComplete, _ in
             self?.onItem = onItem
@@ -207,14 +210,26 @@ final class KMPObservableBridgeTests: XCTestCase {
         withExtendedLifetime(cancellable) {}
     }
 
-    func testAutomaticNativeObservableWrappersNeedNoStateArgument() {
+    func testAutomaticNativeObservableWrappersUseNativeFlowNotSKIE() {
         let ownedModel = NativeFlowModel()
         let observedModel = NativeFlowModel()
+        guard case .explicit(let routedStates) =
+            kmpAutomaticObservationSource(
+                for: ownedModel,
+                strategy: .automaticSKIE
+            )
+        else {
+            return XCTFail("Native observable was not routed explicitly")
+        }
+        XCTAssertEqual(routedStates.count, 1)
+
         let owned = KMPStateObject(wrappedValue: ownedModel)
         let observed = KMPObservedObject(observedModel)
 
         XCTAssertTrue(owned.wrappedValue === ownedModel)
         XCTAssertTrue(observed.wrappedValue === observedModel)
+        XCTAssertTrue(ownedModel.isObserved)
+        XCTAssertTrue(observedModel.isObserved)
     }
 
     func testExplicitAutomaticSKIEStrategy() {
@@ -246,6 +261,7 @@ final class KMPObservableBridgeTests: XCTestCase {
     func testNoneAutomaticObservationExposesModelsWithoutSubscribing() {
         let ownedModel = Model()
         let observedModel = Model()
+        let nativeModel = NativeFlowModel()
         let owned = KMPStateObject(
             wrappedValue: ownedModel,
             observation: .none
@@ -254,9 +270,15 @@ final class KMPObservableBridgeTests: XCTestCase {
             observedModel,
             observation: .none
         )
+        let disabledNative = KMPStateObject(
+            wrappedValue: nativeModel,
+            observation: .none
+        )
 
         XCTAssertTrue(owned.wrappedValue === ownedModel)
         XCTAssertTrue(observed.wrappedValue === observedModel)
+        XCTAssertTrue(disabledNative.wrappedValue === nativeModel)
+        XCTAssertFalse(nativeModel.isObserved)
     }
 
     func testGeneratedAutomaticConformanceSupportsBothWrappers() {

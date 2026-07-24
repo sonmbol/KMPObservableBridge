@@ -21,8 +21,8 @@ public typealias KMPNativeFlow<Output, Failure: Error, Unit> = (
 @MainActor
 public protocol KMPAutomaticallyObservable: AnyObject {
     func kmpObserveAutomatically(
-        notify: @escaping KMPState<Self>.Notify,
-        reportError: @escaping KMPState<Self>.ReportError
+        notify: @escaping @Sendable () -> Void,
+        reportError: @escaping @Sendable (Error) -> Void
     ) -> KMPObservation
 }
 

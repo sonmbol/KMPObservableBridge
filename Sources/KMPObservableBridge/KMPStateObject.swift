@@ -14,10 +14,10 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         storage
     }
 
-    /// Creates a model using an explicitly selected automatic integration.
+    /// Creates and owns a model using automatic observation by default.
     ///
-    /// `.automaticSKIE` is experimental. Explicit `state:`, `states:`, and
-    /// `adapters:` initializers are the production-stable alternatives.
+    /// Explicit automatic contracts such as `KMPNativeObservable` are checked
+    /// first. Other models use SKIE discovery unless `.none` is selected.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
         observation: KMPAutomaticObservation = .automaticSKIE,
@@ -25,27 +25,24 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
-        let enablesAutomaticDiscovery: Bool
-        switch observation {
-        case .none:
-            enablesAutomaticDiscovery = false
-        case .automaticSKIE:
-            enablesAutomaticDiscovery = true
-        }
+        let viewModel = makeViewModel()
+        let source = kmpAutomaticObservationSource(
+            for: viewModel,
+            strategy: observation
+        )
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
-                makeViewModel(),
-                states: [],
+                viewModel,
+                source: source,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
-                disposer: dispose,
-                automaticStateFlowDiscovery: enablesAutomaticDiscovery
+                disposer: dispose
             )
         )
     }
 
-    /// Resolves a model using an explicitly selected automatic integration.
+    /// Resolves and owns an injected model using automatic observation.
     public init<Injector>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
@@ -54,44 +51,15 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
-        let enablesAutomaticDiscovery: Bool
-        switch observation {
-        case .none:
-            enablesAutomaticDiscovery = false
-        case .automaticSKIE:
-            enablesAutomaticDiscovery = true
-        }
-        _storage = StateObject(
-            wrappedValue: KMPViewModelStore(
-                makeInjector()[keyPath: keyPath],
-                states: [],
-                updatePolicy: updatePolicy,
-                failurePolicy: failurePolicy,
-                ownsModel: true,
-                disposer: dispose,
-                automaticStateFlowDiscovery: enablesAutomaticDiscovery
-            )
+        let viewModel = makeInjector()[keyPath: keyPath]
+        let source = kmpAutomaticObservationSource(
+            for: viewModel,
+            strategy: observation
         )
-    }
-
-    /// Creates a model using its explicit automatic-observation contract.
-    public init(
-        wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        updatePolicy: KMPUpdatePolicy = .coalesced,
-        failurePolicy: KMPObservationFailurePolicy = .log,
-        dispose: (@MainActor (ViewModel) -> Void)? = nil
-    ) where ViewModel: KMPAutomaticallyObservable {
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
-                makeViewModel(),
-                states: [
-                    .callback { viewModel, notify, reportError in
-                        viewModel.kmpObserveAutomatically(
-                            notify: notify,
-                            reportError: reportError
-                        )
-                    },
-                ],
+                viewModel,
+                source: source,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,

@@ -1,60 +1,22 @@
-import Combine
 import SwiftUI
-
-@MainActor
-private final class KMPObservedObjectHolder<ViewModel: AnyObject>:
-    @preconcurrency ObservableObject
-{
-    let objectWillChange = ObservableObjectPublisher()
-    let store: KMPViewModelStore<ViewModel>?
-    private var forwarding: AnyCancellable?
-
-    init(store: KMPViewModelStore<ViewModel>?) {
-        self.store = store
-        forwarding = store?.objectWillChange.sink { [weak self] in
-            self?.objectWillChange.send()
-        }
-    }
-}
 
 /// Observes a KMP ViewModel owned outside this SwiftUI view.
 @MainActor
 @propertyWrapper
 public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicProperty {
-    @StateObject private var holder: KMPObservedObjectHolder<ViewModel>
-    private let input: ViewModel?
-    private let states: [KMPState<ViewModel>]
+    @StateObject private var storage: KMPViewModelStore<ViewModel>
+    private let input: ViewModel
+    private let source: KMPObservationSource<ViewModel>
 
     public var wrappedValue: ViewModel {
-        requiredStore.value
+        storage.value
     }
 
     public var projectedValue: KMPViewModelStore<ViewModel> {
-        requiredStore
+        storage
     }
 
-    /// Declares deferred observation using the default automatic SKIE mode.
-    ///
-    /// Assign the backing wrapper in the enclosing view's initializer.
-    public init() {
-        self.init(observation: .automaticSKIE)
-    }
-
-    /// Declares deferred observation with an explicit automatic strategy.
-    ///
-    /// Assign the backing wrapper in the enclosing view's initializer. Access
-    /// before that assignment is a programmer error and traps with a message.
-    public init(
-        observation: KMPAutomaticObservation = .automaticSKIE
-    ) {
-        input = nil
-        states = []
-        _holder = StateObject(
-            wrappedValue: KMPObservedObjectHolder(store: nil)
-        )
-    }
-
-    /// Observes a model using automatic SKIE discovery by default.
+    /// Observes a model using its explicit contract or SKIE discovery.
     public init(
         wrappedValue viewModel: ViewModel,
         observation: KMPAutomaticObservation = .automaticSKIE,
@@ -69,64 +31,20 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         )
     }
 
-    /// Observes an external model using an explicitly selected integration.
+    /// Observes an external model without taking ownership.
     public init(
         _ viewModel: ViewModel,
         observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
-        let enablesAutomaticDiscovery: Bool
-        switch observation {
-        case .none:
-            enablesAutomaticDiscovery = false
-        case .automaticSKIE:
-            enablesAutomaticDiscovery = true
-        }
-        self.init(
-            viewModel,
-            adapterArray: [],
-            updatePolicy: updatePolicy,
-            failurePolicy: failurePolicy,
-            automaticStateFlowDiscovery: enablesAutomaticDiscovery
+        let source = kmpAutomaticObservationSource(
+            for: viewModel,
+            strategy: observation
         )
-    }
-
-    public init(
-        wrappedValue viewModel: ViewModel,
-        updatePolicy: KMPUpdatePolicy = .coalesced,
-        failurePolicy: KMPObservationFailurePolicy = .log
-    ) where ViewModel: KMPAutomaticallyObservable {
         self.init(
             viewModel,
-            adapterArray: [
-                .callback { viewModel, notify, reportError in
-                    viewModel.kmpObserveAutomatically(
-                        notify: notify,
-                        reportError: reportError
-                    )
-                },
-            ],
-            updatePolicy: updatePolicy,
-            failurePolicy: failurePolicy
-        )
-    }
-
-    public init(
-        _ viewModel: ViewModel,
-        updatePolicy: KMPUpdatePolicy = .coalesced,
-        failurePolicy: KMPObservationFailurePolicy = .log
-    ) where ViewModel: KMPAutomaticallyObservable {
-        self.init(
-            viewModel,
-            adapterArray: [
-                .callback { viewModel, notify, reportError in
-                    viewModel.kmpObserveAutomatically(
-                        notify: notify,
-                        reportError: reportError
-                    )
-                },
-            ],
+            source: source,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -260,39 +178,37 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         _ viewModel: ViewModel,
         adapterArray: [KMPState<ViewModel>],
         updatePolicy: KMPUpdatePolicy,
-        failurePolicy: KMPObservationFailurePolicy,
-        automaticStateFlowDiscovery: Bool = false
+        failurePolicy: KMPObservationFailurePolicy
+    ) {
+        self.init(
+            viewModel,
+            source: .explicit(adapterArray),
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
+    private init(
+        _ viewModel: ViewModel,
+        source: KMPObservationSource<ViewModel>,
+        updatePolicy: KMPUpdatePolicy,
+        failurePolicy: KMPObservationFailurePolicy
     ) {
         input = viewModel
-        states = adapterArray
-        let store = KMPViewModelStore(
+        self.source = source
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
                 viewModel,
-                states: adapterArray,
+                source: source,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
-                ownsModel: false,
-                automaticStateFlowDiscovery: automaticStateFlowDiscovery
+                ownsModel: false
             )
-        _holder = StateObject(
-            wrappedValue: KMPObservedObjectHolder(store: store)
         )
     }
 
     public mutating func update() {
-        _holder.update()
-        guard let input, let store = holder.store else {
-            return
-        }
-        store.rebind(to: input, states: states)
-    }
-
-    private var requiredStore: KMPViewModelStore<ViewModel> {
-        guard let store = holder.store else {
-            preconditionFailure(
-                "KMPObservedObject must be initialized by assigning its "
-                    + "backing storage in the enclosing view initializer."
-            )
-        }
-        return store
+        _storage.update()
+        storage.rebind(to: input, source: source)
     }
 }
