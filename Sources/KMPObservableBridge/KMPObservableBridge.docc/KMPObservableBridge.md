@@ -36,8 +36,11 @@ removes the key path without requiring a framework-owned Kotlin superclass.
 For SKIE frameworks, the optional `kmp-observable-bridge-generator` executable
 can inspect the framework after its Gradle build and generate the
 ``KMPAutomaticallyObservable`` conformances. Add its generated Swift file to
-the application target before using the same no-state wrapper syntax. Projects
-that do not run the generator continue using the explicit `state:` or `states:`
+the application target automatically by passing `--xcode-project` and
+`--target`. The initial registration intentionally requires one additional
+build because Xcode plans Compile Sources before Run Scripts execute. Later
+builds update the generated source without rewriting the project. Projects that
+do not run the generator continue using explicit `state:` or `states:`
 initializers.
 
 ## Topics

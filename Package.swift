@@ -20,12 +20,23 @@ let package = Package(
             targets: ["KMPObservableBridgeGenerator"]
         ),
     ],
+    dependencies: [
+        // Used only by the optional generator executable. The bridge runtime
+        // remains dependency-free.
+        .package(
+            url: "https://github.com/tuist/XcodeProj.git",
+            exact: "8.24.0"
+        ),
+    ],
     targets: [
         .target(
             name: "KMPObservableBridge"
         ),
         .executableTarget(
-            name: "KMPObservableBridgeGenerator"
+            name: "KMPObservableBridgeGenerator",
+            dependencies: [
+                .product(name: "XcodeProj", package: "XcodeProj"),
+            ]
         ),
         .testTarget(
             name: "KMPObservableBridgeTests",
