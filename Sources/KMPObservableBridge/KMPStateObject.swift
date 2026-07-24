@@ -20,7 +20,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     /// `adapters:` initializers are the production-stable alternatives.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        observation: KMPAutomaticObservation,
+        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
@@ -49,7 +49,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     public init<Injector>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
-        observation: KMPAutomaticObservation,
+        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil

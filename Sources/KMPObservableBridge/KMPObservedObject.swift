@@ -33,12 +33,19 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         requiredStore
     }
 
-    /// Declares deferred experimental SKIE observation.
+    /// Declares deferred observation using the default automatic SKIE mode.
+    ///
+    /// Assign the backing wrapper in the enclosing view's initializer.
+    public init() {
+        self.init(observation: .automaticSKIE)
+    }
+
+    /// Declares deferred observation with an explicit automatic strategy.
     ///
     /// Assign the backing wrapper in the enclosing view's initializer. Access
     /// before that assignment is a programmer error and traps with a message.
     public init(
-        observation: KMPAutomaticObservation
+        observation: KMPAutomaticObservation = .automaticSKIE
     ) {
         input = nil
         states = []
@@ -47,10 +54,25 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         )
     }
 
+    /// Observes a model using automatic SKIE discovery by default.
+    public init(
+        wrappedValue viewModel: ViewModel,
+        observation: KMPAutomaticObservation = .automaticSKIE,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) {
+        self.init(
+            viewModel,
+            observation: observation,
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
     /// Observes an external model using an explicitly selected integration.
     public init(
         _ viewModel: ViewModel,
-        observation: KMPAutomaticObservation,
+        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {

@@ -217,7 +217,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
-    func testExperimentalSKIEObservationRequiresExplicitOptIn() {
+    func testExplicitAutomaticSKIEStrategy() {
         let ownedModel = Model()
         let observedModel = Model()
         let owned = KMPStateObject(
@@ -228,6 +228,16 @@ final class KMPObservableBridgeTests: XCTestCase {
             observedModel,
             observation: .automaticSKIE
         )
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+    }
+
+    func testAutomaticSKIEIsTheDefaultObservationStrategy() {
+        let ownedModel = Model()
+        let observedModel = Model()
+        let owned = KMPStateObject(wrappedValue: ownedModel)
+        let observed = KMPObservedObject(observedModel)
 
         XCTAssertTrue(owned.wrappedValue === ownedModel)
         XCTAssertTrue(observed.wrappedValue === observedModel)

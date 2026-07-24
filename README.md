@@ -224,8 +224,7 @@ private var profile
 
 ```swift
 struct ProfileContent: View {
-    @KMPObservedObject(observation: .automaticSKIE)
-    private var profile: ProfileViewModel
+    @KMPObservedObject private var profile: ProfileViewModel
 
     init(viewModel: ProfileViewModel) {
         _profile = KMPObservedObject(viewModel, state: \.state)
@@ -455,27 +454,33 @@ let state = profile.profileStateValue
 This direct path keeps the bridge core independent of the NativeCoroutines
 Swift package while propagating cancellation to the Kotlin collection.
 
-### Experimental automatic SKIE observation
+### Automatic SKIE observation
 
-SKIE users can explicitly opt into omitting state key paths. KMPObservableBridge
-installs a guarded Objective-C runtime hook on the Kotlin ViewModel and lazily
-observes each `StateFlow` when application code first reads its getter:
+SKIE users can omit state key paths because `.automaticSKIE` is the default:
 
 ```swift
-@KMPStateObject(observation: .automaticSKIE)
+@KMPStateObject
 private var profile = ProfileViewModel()
 
 struct DetailView: View {
     @KMPObservedObject private var profile: ProfileViewModel
 
     init(profile: ProfileViewModel) {
-        _profile = KMPObservedObject(
-            profile,
-            observation: .automaticSKIE
-        )
+        _profile = KMPObservedObject(profile)
     }
 }
 ```
+
+The explicit spelling remains available:
+
+```swift
+@KMPStateObject(observation: .automaticSKIE)
+private var profile = ProfileViewModel()
+```
+
+KMPObservableBridge installs a guarded Objective-C runtime hook on the Kotlin
+ViewModel and lazily observes each `StateFlow` when application code first
+reads its getter.
 
 There is no generated file, build script, Swift extension, `$` registration,
 or Kotlin bridge dependency. Kotlin/Native does not export property metadata,
@@ -496,10 +501,10 @@ deterministic fallback and let an application intentionally select a subset:
 private var profile
 ```
 
-#### Why automatic SKIE observation is opt-in
+#### Automatic SKIE compatibility considerations
 
-The syntax is convenient, but the mechanism has stricter compatibility and
-debugging tradeoffs than explicit key paths:
+Automatic SKIE observation is the convenience default, but the mechanism has
+stricter compatibility and debugging tradeoffs than explicit key paths:
 
 - It uses process-wide Objective-C method interception for exported Kotlin
   getters.
@@ -519,11 +524,11 @@ discovery safely does nothing. It never invokes unknown Kotlin getters or
 methods merely to inspect a model, deduplicates repeated reads, cancels
 replaced flows, and treats lifecycle cancellation as non-failure.
 
-Use `.automaticSKIE` when its reduced declaration ceremony is worth those
-tradeoffs and the application's Kotlin/SKIE matrix is tested in CI. Use
-explicit `state:` or `states:` for maximum production stability. This path
-applies only to SKIE `StateFlow`; KMP-NativeCoroutines uses the separate
-structural `NativeFlow` integration below.
+Test the application's Kotlin/SKIE matrix in CI. Use explicit `state:` or
+`states:` for maximum production stability, or `.none` to disable automatic
+observation entirely. This path applies only to SKIE `StateFlow`;
+KMP-NativeCoroutines uses the separate structural `NativeFlow` integration
+below.
 
 To use the ownership wrapper without creating any automatic observation,
 select `.none` explicitly:
