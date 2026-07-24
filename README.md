@@ -474,10 +474,8 @@ struct DetailView: View {
 }
 ```
 
-Add one Run Script phase before Compile Sources. That is the only Xcode setup:
-do not create a group, add a generated file, or edit Compile Sources manually.
-Keep the existing Gradle framework build first, then invoke the generator with
-the current project and target:
+Add one Run Script phase before Compile Sources. Keep your existing Gradle
+framework build first, then invoke the generator:
 
 ```sh
 set -eu
@@ -494,40 +492,14 @@ KMP_OBSERVABLE_SDKROOT="$SDKROOT" env -u SDKROOT \
     kmp-observable-bridge-generator \
     --framework "$SRCROOT/../shared/build/xcode-frameworks/$CONFIGURATION/$SDK_NAME/shared.framework" \
     --module shared \
-    --output "$GENERATED_DIR/KMPObservableBridge.generated.swift" \
-    --xcode-project "$PROJECT_FILE_PATH" \
-    --target "$TARGET_NAME"
+    --output "$GENERATED_DIR/KMPObservableBridge.generated.swift"
 ```
 
-#### What happens on the first build
-
-1. Gradle builds the current KMP framework.
-2. The generator creates `Generated/KMPObservableBridge` only when needed.
-3. It extracts the framework's public Swift symbol graph and finds supported
-   SKIE StateFlow properties.
-4. It writes `KMPObservableBridge.generated.swift` atomically.
-5. It safely opens the `.xcodeproj`, creates the matching yellow groups, adds
-   the file to the selected target's Compile Sources, and saves the project.
-6. The first build stops with a clear “build again” message. This is required
-   because Xcode calculates its Swift source list before Run Scripts execute.
-7. On the second and every later build, Xcode already knows the file. The
-   generator updates its contents but does not rewrite `project.pbxproj`.
-
-Registration is idempotent: deleting only the generated Swift file causes it
-to be recreated; removing its Xcode reference causes it to be registered
-again. The script never creates duplicate groups, file references, or Compile
-Sources entries. Commit the generated file and the one-time project change so
-other developers and CI do not encounter the first-build restart. Do not edit
-the generated source manually.
-
-The `XcodeProj` package is linked only into the optional generator executable.
-`KMPObservableBridge`, application binaries, and KMP shared modules do not
-link or depend on it.
-
-The DailyPulse repository includes the complete reusable script at
-`Examples/DailyPulse/iosApp/generate-kmp-observation.sh`. Its project and target
-arguments come from Xcode's `PROJECT_FILE_PATH` and `TARGET_NAME`, so it does
-not hard-code an `.xcodeproj` name or application target.
+Create the `Generated/KMPObservableBridge` group in Xcode once, add
+`KMPObservableBridge.generated.swift` to the application target's Compile
+Sources, and declare the same file under the Run Script's Output Files. Commit
+the generated file so a clean checkout has a valid Xcode build graph; each
+build replaces it atomically. Do not edit it manually.
 
 This mode is optional. Without the generator, all explicit `state:` and
 `states:` initializers continue to work exactly as before:

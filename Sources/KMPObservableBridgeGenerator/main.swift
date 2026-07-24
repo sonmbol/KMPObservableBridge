@@ -1,6 +1,4 @@
 import Foundation
-import PathKit
-import XcodeProj
 
 private struct SymbolGraph: Decodable {
     struct Metadata: Decodable {
@@ -52,8 +50,6 @@ private struct Options {
     let symbolGraph: URL?
     let framework: URL?
     let module: String?
-    let xcodeProject: URL?
-    let target: String?
     let output: URL
 
     init(arguments: [String]) throws {
@@ -76,17 +72,10 @@ private struct Options {
             URL(fileURLWithPath: $0)
         }
         module = value(after: "--module")
-        xcodeProject = value(after: "--xcode-project").map {
-            URL(fileURLWithPath: $0)
-        }
-        target = value(after: "--target")
         self.output = URL(fileURLWithPath: output)
 
         guard (symbolGraph != nil && module != nil)
                 || framework != nil else {
-            throw GeneratorError.usage
-        }
-        guard (xcodeProject == nil) == (target == nil) else {
             throw GeneratorError.usage
         }
     }
@@ -98,11 +87,6 @@ private enum GeneratorError: LocalizedError {
     case noStateFlows
     case missingEnvironment(String)
     case processFailed(String, Int32)
-    case invalidXcodeProject(String)
-    case targetNotFound(String)
-    case outputOutsideProject(String)
-    case sourcesBuildPhaseNotFound(String)
-    case projectRegistered(String, String)
 
     var errorDescription: String? {
         switch self {
@@ -112,8 +96,7 @@ private enum GeneratorError: LocalizedError {
               kmp-observable-bridge-generator \
                 --symbol-graph <file> --module <Swift module> --output <file>
               kmp-observable-bridge-generator \
-                --framework <framework> [--module <Swift module>] --output <file> \
-                [--xcode-project <project.xcodeproj> --target <target>]
+                --framework <framework> [--module <Swift module>] --output <file>
             """
         case .unsupportedSymbolGraph(let major):
             return "Unsupported symbol graph format major version \(major)."
@@ -123,20 +106,6 @@ private enum GeneratorError: LocalizedError {
             return "Required Xcode build environment variable \(name) is missing."
         case .processFailed(let command, let status):
             return "\(command) failed with exit status \(status)."
-        case .invalidXcodeProject(let path):
-            return "The Xcode project at \(path) has no root project or main group."
-        case .targetNotFound(let name):
-            return "The Xcode project does not contain a native target named \(name)."
-        case .outputOutsideProject(let path):
-            return "Generated output must be inside the Xcode project's directory: \(path)"
-        case .sourcesBuildPhaseNotFound(let target):
-            return "Target \(target) has no Compile Sources build phase."
-        case .projectRegistered(let file, let target):
-            return """
-            Registered \(file) with target \(target). Xcode planned this build \
-            before registration, so this first build stops intentionally. \
-            Build again; future generation is automatic.
-            """
         }
     }
 }
@@ -361,90 +330,6 @@ private func generate(options: Options) throws {
     } else {
         try FileManager.default.moveItem(at: temporary, to: options.output)
     }
-
-    if let project = options.xcodeProject, let target = options.target {
-        let changed = try installGeneratedSource(
-            options.output,
-            in: project,
-            targetName: target
-        )
-        if changed {
-            throw GeneratorError.projectRegistered(
-                options.output.lastPathComponent,
-                target
-            )
-        }
-    }
-}
-
-/// Registers the generated source without requiring the developer to edit the
-/// project navigator or Compile Sources. Returns `true` only when the project
-/// was changed, so normal builds never rewrite `project.pbxproj`.
-private func installGeneratedSource(
-    _ sourceURL: URL,
-    in projectURL: URL,
-    targetName: String
-) throws -> Bool {
-    let projectPath = Path(projectURL.standardizedFileURL.path)
-    let projectDirectory = projectPath.parent()
-    let sourcePath = Path(sourceURL.standardizedFileURL.path)
-    guard sourcePath.string.hasPrefix(projectDirectory.string + "/") else {
-        throw GeneratorError.outputOutsideProject(sourcePath.string)
-    }
-
-    let xcodeProject = try XcodeProj(path: projectPath)
-    guard let project = xcodeProject.pbxproj.rootObject,
-          let mainGroup = project.mainGroup else {
-        throw GeneratorError.invalidXcodeProject(projectPath.string)
-    }
-    guard let target = project.targets
-        .compactMap({ $0 as? PBXNativeTarget })
-        .first(where: { $0.name == targetName }) else {
-        throw GeneratorError.targetNotFound(targetName)
-    }
-    guard let sources = try target.sourcesBuildPhase() else {
-        throw GeneratorError.sourcesBuildPhaseNotFound(targetName)
-    }
-
-    let relativePath = String(
-        sourcePath.string.dropFirst(projectDirectory.string.count + 1)
-    )
-    let groupComponents = Path(relativePath).parent().components
-    var group = mainGroup
-    var changed = false
-    for component in groupComponents where component != "." {
-        if let existing = group.group(named: component) {
-            group = existing
-        } else {
-            guard let created = try group.addGroup(named: component).last else {
-                throw GeneratorError.invalidXcodeProject(projectPath.string)
-            }
-            group = created
-            changed = true
-        }
-    }
-
-    let file: PBXFileReference
-    if let existing = group.file(named: sourcePath.lastComponent) {
-        file = existing
-    } else {
-        file = try group.addFile(
-            at: sourcePath,
-            sourceRoot: projectDirectory
-        )
-        changed = true
-    }
-
-    let alreadyCompiled = try target.sourceFiles().contains { $0 === file }
-    if !alreadyCompiled {
-        _ = try sources.add(file: file)
-        changed = true
-    }
-
-    if changed {
-        try xcodeProject.write(path: projectPath)
-    }
-    return changed
 }
 
 do {
