@@ -54,12 +54,19 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
+        let enablesAutomaticDiscovery: Bool
+        switch observation {
+        case .none:
+            enablesAutomaticDiscovery = false
+        case .automaticSKIE:
+            enablesAutomaticDiscovery = true
+        }
         self.init(
             viewModel,
             adapterArray: [],
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy,
-            automaticStateFlowDiscovery: true
+            automaticStateFlowDiscovery: enablesAutomaticDiscovery
         )
     }
 

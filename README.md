@@ -525,6 +525,30 @@ explicit `state:` or `states:` for maximum production stability. This path
 applies only to SKIE `StateFlow`; KMP-NativeCoroutines uses the separate
 structural `NativeFlow` integration below.
 
+To use the ownership wrapper without creating any automatic observation,
+select `.none` explicitly:
+
+```swift
+@KMPStateObject(observation: .none)
+private var profile = ProfileViewModel()
+```
+
+For an externally owned model, use the same strategy in the declaration and
+backing-wrapper initialization:
+
+```swift
+@KMPObservedObject(observation: .none)
+private var profile: ProfileViewModel
+
+init(profile: ProfileViewModel) {
+    _profile = KMPObservedObject(profile, observation: .none)
+}
+```
+
+`.none` does not invalidate SwiftUI when Kotlin state changes. It is intended
+for models observed by another owner, action-only models, previews, or
+intentionally static reads.
+
 ### Optional automatic KMP-NativeCoroutines observation
 
 Automatic observation requires an explicit Kotlin contract; Swift cannot

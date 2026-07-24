@@ -25,6 +25,13 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
+        let enablesAutomaticDiscovery: Bool
+        switch observation {
+        case .none:
+            enablesAutomaticDiscovery = false
+        case .automaticSKIE:
+            enablesAutomaticDiscovery = true
+        }
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
@@ -33,7 +40,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
                 failurePolicy: failurePolicy,
                 ownsModel: true,
                 disposer: dispose,
-                automaticStateFlowDiscovery: true
+                automaticStateFlowDiscovery: enablesAutomaticDiscovery
             )
         )
     }
@@ -47,6 +54,13 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
+        let enablesAutomaticDiscovery: Bool
+        switch observation {
+        case .none:
+            enablesAutomaticDiscovery = false
+        case .automaticSKIE:
+            enablesAutomaticDiscovery = true
+        }
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeInjector()[keyPath: keyPath],
@@ -55,7 +69,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
                 failurePolicy: failurePolicy,
                 ownsModel: true,
                 disposer: dispose,
-                automaticStateFlowDiscovery: true
+                automaticStateFlowDiscovery: enablesAutomaticDiscovery
             )
         )
     }

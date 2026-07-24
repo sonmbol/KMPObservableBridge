@@ -233,6 +233,22 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
+    func testNoneAutomaticObservationExposesModelsWithoutSubscribing() {
+        let ownedModel = Model()
+        let observedModel = Model()
+        let owned = KMPStateObject(
+            wrappedValue: ownedModel,
+            observation: .none
+        )
+        let observed = KMPObservedObject(
+            observedModel,
+            observation: .none
+        )
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+    }
+
     func testGeneratedAutomaticConformanceSupportsBothWrappers() {
         let ownedModel = GeneratedStyleModel()
         let observedModel = GeneratedStyleModel()
