@@ -12,6 +12,39 @@ private final class KMPModernRevision {
 }
 #endif
 
+/// One mutually exclusive observation route selected before a store starts.
+///
+/// Keeping this as a single value prevents explicit adapters and runtime SKIE
+/// discovery from being enabled together accidentally.
+enum KMPObservationSource<ViewModel: AnyObject> {
+    case none
+    case automaticSKIE
+    case explicit([KMPState<ViewModel>])
+}
+
+@MainActor
+func kmpAutomaticObservationSource<ViewModel: AnyObject>(
+    for viewModel: ViewModel,
+    strategy: KMPAutomaticObservation
+) -> KMPObservationSource<ViewModel> {
+    if case .none = strategy {
+        return .none
+    }
+
+    if let automaticModel = viewModel as? any KMPAutomaticallyObservable {
+        return .explicit([
+            .custom { _, notify, reportError in
+                automaticModel.kmpObserveAutomatically(
+                    notify: notify,
+                    reportError: reportError
+                )
+            },
+        ])
+    }
+
+    return .automaticSKIE
+}
+
 /// Observable storage shared by owning, observed, and environment wrappers.
 ///
 /// The store is exposed as a projected value (`$viewModel`) so observation can
@@ -32,9 +65,29 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     private var modernRevision: AnyObject?
     private let modernObservationEnabled: Bool
 
-    init(
+    convenience init(
         _ wrappedValue: ViewModel,
         states: [KMPState<ViewModel>],
+        updatePolicy: KMPUpdatePolicy,
+        failurePolicy: KMPObservationFailurePolicy,
+        ownsModel: Bool,
+        disposer: Disposer? = nil,
+        modernObservationEnabled: Bool = true
+    ) {
+        self.init(
+            wrappedValue,
+            source: .explicit(states),
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy,
+            ownsModel: ownsModel,
+            disposer: disposer,
+            modernObservationEnabled: modernObservationEnabled
+        )
+    }
+
+    init(
+        _ wrappedValue: ViewModel,
+        source: KMPObservationSource<ViewModel>,
         updatePolicy: KMPUpdatePolicy,
         failurePolicy: KMPObservationFailurePolicy,
         ownsModel: Bool,
@@ -51,7 +104,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
             }
         }
         configureModernObservation()
-        startObserving(states)
+        startObserving(source)
     }
 
     deinit {
@@ -70,19 +123,51 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
 
     /// Rebinds an externally owned model using deterministic teardown ordering.
     func rebind(to viewModel: ViewModel, states: [KMPState<ViewModel>]) {
+        rebind(to: viewModel, source: .explicit(states))
+    }
+
+    /// Rebinds using exactly one observation route.
+    func rebind(
+        to viewModel: ViewModel,
+        source: KMPObservationSource<ViewModel>
+    ) {
         guard wrappedValue !== viewModel else {
             return
         }
 
         stopObserving()
         wrappedValue = viewModel
-        startObserving(states)
+        startObserving(source)
         emitChange()
     }
 
-    private func startObserving(_ states: [KMPState<ViewModel>]) {
+    private func startObserving(
+        _ source: KMPObservationSource<ViewModel>
+    ) {
         generation &+= 1
         let activeGeneration = generation
+
+        let states: [KMPState<ViewModel>]
+        switch source {
+        case .none:
+            states = []
+        case .automaticSKIE:
+            #if canImport(ObjectiveC)
+            states = [
+                .custom { viewModel, notify, reportError in
+                    KMPAutomaticStateFlowRuntime.observe(
+                        viewModel,
+                        notify: notify,
+                        reportError: reportError
+                    )
+                },
+            ]
+            #else
+            states = []
+            #endif
+        case .explicit(let explicitStates):
+            states = explicitStates
+        }
 
         observations = states.map { state in
             state.observe(

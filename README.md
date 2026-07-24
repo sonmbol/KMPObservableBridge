@@ -15,9 +15,9 @@ truth, and SwiftUI continues calling the real Kotlin ViewModel directly.
 KMP-NativeCoroutines, Combine, callbacks, and custom coroutine adapters.**
 
 The core has no Kotlin-side component, superclass, annotation, compiler plugin,
-or third-party runtime dependency. Explicit state key paths are intentional:
-arbitrary generated KMP streams cannot be discovered reliably through Swift or
-Objective-C reflection without framework-specific metadata.
+code generator, or third-party runtime dependency. SKIE StateFlows are
+discovered lazily through their exported Objective-C getters; explicit state
+key paths remain available when deterministic selection is preferred.
 
 Keywords: SwiftUI, Kotlin Multiplatform, KMP, KMM, StateFlow, coroutines,
 Kotlin/Native, iOS, SKIE, KMP-NativeCoroutines, ObservableObject, Observation,
@@ -41,11 +41,7 @@ final class ProfileAdapter: ObservableObject {
 With KMPObservableBridge, SwiftUI owns or observes the real Kotlin ViewModel:
 
 ```swift
-@KMPStateObject(
-    wrappedValue: ProfileViewModel(),
-    state: \.state
-)
-private var profile
+@KMPStateObject private var profile = ProfileViewModel()
 ```
 
 No shadow `@Published` state, duplicated action methods, or screen-specific
@@ -97,7 +93,7 @@ class ProfileViewModel(
 Loading, content, empty, and domain-error states should live together in this
 immutable state object.
 
-### 2. Add the SKIE conformance once
+### 2. Add nicer state reads (optional)
 
 Place this in the iOS application target:
 
@@ -108,8 +104,9 @@ import KMPObservableBridge
 extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
 ```
 
-This only adds convenient nested reads. It does not copy or take ownership of
-the Kotlin state.
+This lets Swift read `viewModel.state.isLoading` instead of
+`viewModel.state.value.isLoading`. It does not affect observation, copy state,
+or take ownership of anything.
 
 ### 3. Own and observe the ViewModel
 
@@ -117,7 +114,6 @@ the Kotlin state.
 struct ProfileScreen: View {
     @KMPStateObject(
         wrappedValue: ProfileViewModel(repository: Dependencies.profile),
-        state: \.state,
         dispose: { $0.clear() }
     )
     private var viewModel
@@ -142,8 +138,9 @@ struct ProfileScreen: View {
 ```
 
 There is no Swift adapter object and no duplicated `@Published` state.
-The default `.coalesced` update policy avoids redundant redraws when several
-flows emit in the same main-actor turn.
+Automatic SKIE observation and the `.coalesced` update policy are the defaults.
+Use an explicit `state:` key path for deterministic selection or
+`observation: .none` to create no automatic subscription.
 
 ## Installation
 
@@ -200,7 +197,6 @@ The package supports:
 ```swift
 @KMPStateObject(
     wrappedValue: ProfileViewModel(),
-    state: \.state,
     dispose: { $0.clear() }
 )
 private var profile
@@ -214,7 +210,6 @@ The model is created lazily and once per SwiftUI view identity.
 @KMPStateObject(
     injector: AppInjector(),
     viewModel: \.profileViewModel,
-    state: \.state,
     dispose: { $0.clear() }
 )
 private var profile
@@ -227,7 +222,7 @@ struct ProfileContent: View {
     @KMPObservedObject private var profile: ProfileViewModel
 
     init(viewModel: ProfileViewModel) {
-        _profile = KMPObservedObject(viewModel, state: \.state)
+        _profile = KMPObservedObject(viewModel)
     }
 
     var body: some View {
@@ -436,6 +431,23 @@ updatePolicy: .immediate
 The convenience `state: \.state` initializer accepts any `AsyncSequence`, not
 only SKIE.
 
+### How the bridge chooses an observer
+
+The bridge chooses exactly one observation route when it creates the store.
+The routes cannot run together:
+
+| Model or initializer | Observation route |
+| --- | --- |
+| Model conforms to `KMPNativeObservable` | Its canonical NativeFlow |
+| `state:`, `states:`, or `adapters:` is supplied | Only those explicit sources |
+| `observation: .none` | No observation |
+| Ordinary no-state initializer | Automatic SKIE discovery |
+
+This decision happens before any SKIE runtime inspection. A
+`KMPNativeObservable` model does not install getter interception or look up a
+SKIE iterator. Likewise, an explicit state or adapter never starts automatic
+SKIE discovery.
+
 ### KMP-NativeCoroutines
 
 KMPObservableBridge understands the exported `NativeFlow` signature directly.
@@ -454,11 +466,109 @@ let state = profile.profileStateValue
 This direct path keeps the bridge core independent of the NativeCoroutines
 Swift package while propagating cancellation to the Kotlin collection.
 
-### Optional automatic ViewModel observation
+### Automatic SKIE observation
 
-Automatic observation requires an explicit Kotlin contract; Swift cannot
-discover arbitrary flow properties through Objective-C reflection. Expose one
-canonical NativeFlow that emits whenever any UI-facing state changes:
+SKIE users can omit state key paths because `.automaticSKIE` is the default:
+
+```swift
+@KMPStateObject
+private var profile = ProfileViewModel()
+
+struct DetailView: View {
+    @KMPObservedObject private var profile: ProfileViewModel
+
+    init(profile: ProfileViewModel) {
+        _profile = KMPObservedObject(profile)
+    }
+}
+```
+
+The explicit spelling remains available:
+
+```swift
+@KMPStateObject(observation: .automaticSKIE)
+private var profile = ProfileViewModel()
+```
+
+KMPObservableBridge installs a guarded Objective-C runtime hook on the Kotlin
+ViewModel and lazily observes each `StateFlow` when application code first
+reads its getter.
+
+There is no generated file, build script, Swift extension, `$` registration,
+or Kotlin bridge dependency. Kotlin/Native does not export property metadata,
+so the bridge does not enumerate or invoke properties speculatively. It wraps
+eligible Objective-C getters and inspects only values returned by getters the
+view naturally accesses. Non-flow values are ignored, repeated reads are
+deduplicated, and a getter returning a replacement flow cancels the old
+collection before observing the new identity.
+
+Only accessed flows are observed. Explicit `state:` and `states:` remain the
+deterministic fallback and let an application intentionally select a subset:
+
+```swift
+@KMPStateObject(
+    wrappedValue: ProfileViewModel(),
+    states: \.profileState, \.permissionsState
+)
+private var profile
+```
+
+#### Automatic SKIE compatibility considerations
+
+Automatic SKIE observation is the convenience default, but the mechanism has
+stricter compatibility and debugging tradeoffs than explicit key paths:
+
+- It uses process-wide Objective-C method interception for exported Kotlin
+  getters.
+- It dynamically calls SKIE's generated `SkieColdFlowIterator` ABI, which SKIE
+  does not document as a stable third-party runtime API.
+- A future Kotlin/Native or SKIE release may change generated names or method
+  signatures.
+- Another runtime library could intercept the same getter.
+- Only flows whose getters are actually read are observed, so conditional UI
+  can establish subscriptions at different times.
+- Failures caused by an incompatible generated ABI are harder to diagnose than
+  statically typed `AsyncSequence` key paths.
+
+The runtime checks the framework image, protocol, iterator class, and required
+selectors before activating. If compatibility cannot be established,
+discovery safely does nothing. It never invokes unknown Kotlin getters or
+methods merely to inspect a model, deduplicates repeated reads, cancels
+replaced flows, and treats lifecycle cancellation as non-failure.
+
+Test the application's Kotlin/SKIE matrix in CI. Use explicit `state:` or
+`states:` for maximum production stability, or `.none` to disable automatic
+observation entirely. This path applies only to SKIE `StateFlow`;
+KMP-NativeCoroutines uses the separate structural `NativeFlow` integration
+below.
+
+To use the ownership wrapper without creating any automatic observation,
+select `.none` explicitly:
+
+```swift
+@KMPStateObject(observation: .none)
+private var profile = ProfileViewModel()
+```
+
+For an externally owned model, keep the declaration plain and select the
+strategy when assigning its backing wrapper:
+
+```swift
+@KMPObservedObject private var profile: ProfileViewModel
+
+init(profile: ProfileViewModel) {
+    _profile = KMPObservedObject(profile, observation: .none)
+}
+```
+
+`.none` does not invalidate SwiftUI when Kotlin state changes. It is intended
+for models observed by another owner, action-only models, previews, or
+intentionally static reads.
+
+### Automatic KMP-NativeCoroutines observation
+
+For KMP-NativeCoroutines, expose one canonical NativeFlow that emits whenever
+any UI-facing state changes:
 
 ```kotlin
 class ProfileViewModel : BaseViewModel() {
@@ -478,6 +588,10 @@ import KMPObservableBridge
 extension ProfileViewModel: @retroactive KMPNativeObservable {}
 ```
 
+That conformance is also the routing signal. The bridge detects the explicit
+NativeFlow contract before it considers the SKIE fallback, so
+NativeCoroutines models never pay for SKIE runtime discovery.
+
 The property-wrapper call then matches native SwiftUI:
 
 ```swift
@@ -493,7 +607,7 @@ struct ProfileView: View {
     @KMPObservedObject private var profile: ProfileViewModel
 
     init(profile: ProfileViewModel) {
-        _profile = KMPObservedObject(wrappedValue: profile)
+        _profile = KMPObservedObject(profile)
     }
 }
 ```
@@ -506,11 +620,10 @@ never disposes an externally owned Kotlin model.
 into writable Swift state. Its canonical flow only invalidates SwiftUI; reads
 and mutations still go directly to the Kotlin model.
 
-Choose the explicit `state:` form for arbitrary existing models and the
-automatic form when the shared model can expose this convention. Achieving
-zero-configuration observation without either contract would require a Kotlin
-runtime/base class such as KMP-ObservableViewModel; the bridge deliberately
-does not pretend Swift reflection can provide that behavior.
+Choose the explicit `state:` form for arbitrary existing models and
+KMP-NativeCoroutines models without a canonical observation flow. Automatic
+SKIE observation uses lazy getter interception rather than Swift reflection:
+`Mirror` cannot enumerate Kotlin/Native computed getters.
 
 `Examples/DailyPulse` compiles both the SKIE and KMP-NativeCoroutines paths
 against a generated Kotlin framework.

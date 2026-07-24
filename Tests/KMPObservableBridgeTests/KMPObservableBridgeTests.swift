@@ -85,6 +85,9 @@ final class KMPObservableBridgeTests: XCTestCase {
         private var onItem: ((Int, @escaping () -> Void, Void) -> Void)?
         private var onComplete: ((TestError?, Void) -> Void)?
         private(set) var cancellationCount = 0
+        var isObserved: Bool {
+            onItem != nil
+        }
 
         lazy var state: Flow = { [weak self] onItem, onComplete, _ in
             self?.onItem = onItem
@@ -104,6 +107,23 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         func fail() {
             onComplete?(.failed, ())
+        }
+    }
+
+    /// Represents an application-defined automatic-observation conformance.
+    private final class GeneratedStyleModel: KMPAutomaticallyObservable {
+        let state = PassthroughSubject<Int, Never>()
+
+        func kmpObserveAutomatically(
+            notify: @escaping KMPState<GeneratedStyleModel>.Notify,
+            reportError: @escaping KMPState<GeneratedStyleModel>.ReportError
+        ) -> KMPObservation {
+            KMPState<GeneratedStyleModel>.publisher(\.state)
+                .startObservation(
+                    on: self,
+                    notify: notify,
+                    reportError: reportError
+                )
         }
     }
 
@@ -190,11 +210,88 @@ final class KMPObservableBridgeTests: XCTestCase {
         withExtendedLifetime(cancellable) {}
     }
 
-    func testAutomaticNativeObservableWrappersNeedNoStateArgument() {
+    func testAutomaticNativeObservableWrappersUseNativeFlowNotSKIE() {
         let ownedModel = NativeFlowModel()
         let observedModel = NativeFlowModel()
+        guard case .explicit(let routedStates) =
+            kmpAutomaticObservationSource(
+                for: ownedModel,
+                strategy: .automaticSKIE
+            )
+        else {
+            return XCTFail("Native observable was not routed explicitly")
+        }
+        XCTAssertEqual(routedStates.count, 1)
+
         let owned = KMPStateObject(wrappedValue: ownedModel)
         let observed = KMPObservedObject(observedModel)
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+        XCTAssertTrue(ownedModel.isObserved)
+        XCTAssertTrue(observedModel.isObserved)
+    }
+
+    func testExplicitAutomaticSKIEStrategy() {
+        let ownedModel = Model()
+        let observedModel = Model()
+        let owned = KMPStateObject(
+            wrappedValue: ownedModel,
+            observation: .automaticSKIE
+        )
+        let observed = KMPObservedObject(
+            observedModel,
+            observation: .automaticSKIE
+        )
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+    }
+
+    func testAutomaticSKIEIsTheDefaultObservationStrategy() {
+        let ownedModel = Model()
+        let observedModel = Model()
+        let owned = KMPStateObject(wrappedValue: ownedModel)
+        let observed = KMPObservedObject(observedModel)
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+    }
+
+    func testNoneAutomaticObservationExposesModelsWithoutSubscribing() {
+        let ownedModel = Model()
+        let observedModel = Model()
+        let nativeModel = NativeFlowModel()
+        let owned = KMPStateObject(
+            wrappedValue: ownedModel,
+            observation: .none
+        )
+        let observed = KMPObservedObject(
+            observedModel,
+            observation: .none
+        )
+        let disabledNative = KMPStateObject(
+            wrappedValue: nativeModel,
+            observation: .none
+        )
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+        XCTAssertTrue(disabledNative.wrappedValue === nativeModel)
+        XCTAssertFalse(nativeModel.isObserved)
+    }
+
+    func testGeneratedAutomaticConformanceSupportsBothWrappers() {
+        let ownedModel = GeneratedStyleModel()
+        let observedModel = GeneratedStyleModel()
+        let owned = KMPStateObject(
+            wrappedValue: ownedModel,
+            updatePolicy: .immediate
+        )
+        let observed = KMPObservedObject(
+            wrappedValue: observedModel,
+            updatePolicy: .immediate
+        )
 
         XCTAssertTrue(owned.wrappedValue === ownedModel)
         XCTAssertTrue(observed.wrappedValue === observedModel)

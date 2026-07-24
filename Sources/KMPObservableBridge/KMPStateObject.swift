@@ -14,17 +14,52 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         storage
     }
 
-    /// Creates an opt-in automatically observable Kotlin model.
+    /// Creates and owns a model using automatic observation by default.
+    ///
+    /// Explicit automatic contracts such as `KMPNativeObservable` are checked
+    /// first. Other models use SKIE discovery unless `.none` is selected.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
+        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
-    ) where ViewModel: KMPNativeObservable {
+    ) {
+        let viewModel = makeViewModel()
+        let source = kmpAutomaticObservationSource(
+            for: viewModel,
+            strategy: observation
+        )
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
-                makeViewModel(),
-                states: [.automatic()],
+                viewModel,
+                source: source,
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose
+            )
+        )
+    }
+
+    /// Resolves and owns an injected model using automatic observation.
+    public init<Injector>(
+        injector makeInjector: @autoclosure @escaping () -> Injector,
+        viewModel keyPath: KeyPath<Injector, ViewModel>,
+        observation: KMPAutomaticObservation = .automaticSKIE,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) {
+        let viewModel = makeInjector()[keyPath: keyPath]
+        let source = kmpAutomaticObservationSource(
+            for: viewModel,
+            strategy: observation
+        )
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                viewModel,
+                source: source,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -77,14 +112,16 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     }
 
     /// Creates a model and observes any number of heterogeneous streams.
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
-        let sources = KMPState<ViewModel>.asyncSequences(repeat each states)
+        let sources = [.asyncSequence(first)]
+            + KMPState<ViewModel>.asyncSequences(repeat each states)
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
@@ -100,7 +137,8 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     /// Creates a model with advanced or mixed observation adapters.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
@@ -108,7 +146,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
-                states: adapters,
+                states: [first] + adapters,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -163,15 +201,17 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     }
 
     /// Resolves a model lazily and observes any number of state streams.
-    public init<Injector, each Sequence: AsyncSequence>(
+    public init<Injector, First: AsyncSequence, each Sequence: AsyncSequence>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
-        let sources = KMPState<ViewModel>.asyncSequences(repeat each states)
+        let sources = [.asyncSequence(first)]
+            + KMPState<ViewModel>.asyncSequences(repeat each states)
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeInjector()[keyPath: keyPath],
@@ -188,7 +228,8 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     public init<Injector>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
@@ -196,7 +237,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeInjector()[keyPath: keyPath],
-                states: adapters,
+                states: [first] + adapters,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,

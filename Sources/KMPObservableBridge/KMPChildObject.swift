@@ -45,14 +45,16 @@ public struct KMPChildObject<Parent: AnyObject, Child: AnyObject>: @preconcurren
         )
     }
 
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         parent: Parent,
         child: KeyPath<Parent, Child>,
-        states: repeat KeyPath<Child, each Sequence>,
+        states first: KeyPath<Child, First>,
+        _ states: repeat KeyPath<Child, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
-        let sources = KMPState<Child>.asyncSequences(repeat each states)
+        let sources = [.asyncSequence(first)]
+            + KMPState<Child>.asyncSequences(repeat each states)
         self.parent = parent
         childKeyPath = child
         self.states = sources
@@ -231,10 +233,11 @@ public struct KMPOptionalChildObject<Parent: AnyObject, Child: AnyObject>:
         )
     }
 
-    public init<Flow, each Sequence: AsyncSequence>(
+    public init<Flow, First: AsyncSequence, each Sequence: AsyncSequence>(
         parent: Parent,
         child: KeyPath<Parent, Flow>,
-        states: repeat KeyPath<Child, each Sequence>,
+        states first: KeyPath<Child, First>,
+        _ states: repeat KeyPath<Child, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) where
@@ -247,9 +250,8 @@ public struct KMPOptionalChildObject<Parent: AnyObject, Child: AnyObject>:
                 parent: parent,
                 parentState: .asyncSequence(child),
                 currentChild: { parent[keyPath: child].value },
-                childStates: KMPState<Child>.asyncSequences(
-                    repeat each states
-                ),
+                childStates: [.asyncSequence(first)]
+                    + KMPState<Child>.asyncSequences(repeat each states),
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy
             )

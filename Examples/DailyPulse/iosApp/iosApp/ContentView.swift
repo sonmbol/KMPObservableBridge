@@ -53,8 +53,7 @@ struct ContentView: View {
 private struct ArticleInjectorExampleView: View {
     @KMPStateObject(
         injector: ArticleInjector(),
-        viewModel: \.articleViewModel,
-        state: \.articleState
+        viewModel: \.articleViewModel
     )
     private var article
 
@@ -70,10 +69,7 @@ private struct ArticleContentView: View {
     @KMPObservedObject private var article: ArticleViewModel
 
     init(viewModel: ArticleViewModel) {
-        _article = KMPObservedObject(
-            viewModel,
-            state: \.articleState
-        )
+        _article = KMPObservedObject(viewModel)
     }
 
     var body: some View {
@@ -96,11 +92,7 @@ private struct ArticleContentView: View {
 }
 
 private struct DirectStateObjectExampleView: View {
-    @KMPStateObject(
-        wrappedValue: BridgeExampleViewModel(),
-        states: \.counterState, \.messageState
-    )
-    private var example
+    @KMPStateObject private var example = BridgeExampleViewModel()
 
     var body: some View {
         NavigationView {
@@ -115,11 +107,7 @@ private struct DirectStateObjectExampleView: View {
 }
 
 private struct ObservedObjectExampleView: View {
-    @KMPStateObject(
-        wrappedValue: BridgeExampleViewModel(),
-        states: \.counterState, \.messageState
-    )
-    private var example
+    @KMPStateObject private var example = BridgeExampleViewModel()
 
     var body: some View {
         NavigationView {
@@ -166,10 +154,7 @@ private struct BridgeExampleChildView: View {
     @KMPObservedObject private var example: BridgeExampleViewModel
 
     init(viewModel: BridgeExampleViewModel) {
-        _example = KMPObservedObject(
-            viewModel,
-            states: \.counterState, \.messageState
-        )
+        _example = KMPObservedObject(viewModel)
     }
 
     var body: some View {
@@ -205,10 +190,7 @@ private struct BridgeExampleContentView: View {
     ) {
         self.title = title
         self.subtitle = subtitle
-        _example = KMPObservedObject(
-            viewModel,
-            states: \.counterState, \.messageState
-        )
+        _example = KMPObservedObject(viewModel)
     }
 
     var body: some View {

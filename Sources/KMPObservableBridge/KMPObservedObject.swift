@@ -6,7 +6,7 @@ import SwiftUI
 public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicProperty {
     @StateObject private var storage: KMPViewModelStore<ViewModel>
     private let input: ViewModel
-    private let states: [KMPState<ViewModel>]
+    private let source: KMPObservationSource<ViewModel>
 
     public var wrappedValue: ViewModel {
         storage.value
@@ -16,27 +16,35 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         storage
     }
 
+    /// Observes a model using its explicit contract or SKIE discovery.
     public init(
         wrappedValue viewModel: ViewModel,
+        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
-    ) where ViewModel: KMPNativeObservable {
+    ) {
         self.init(
             viewModel,
-            adapterArray: [.automatic()],
+            observation: observation,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
     }
 
+    /// Observes an external model without taking ownership.
     public init(
         _ viewModel: ViewModel,
+        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
-    ) where ViewModel: KMPNativeObservable {
+    ) {
+        let source = kmpAutomaticObservationSource(
+            for: viewModel,
+            strategy: observation
+        )
         self.init(
             viewModel,
-            adapterArray: [.automatic()],
+            source: source,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -73,15 +81,17 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         )
     }
 
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         wrappedValue viewModel: ViewModel,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            states: repeat each states,
+            adapterArray: [.asyncSequence(first)]
+                + KMPState<ViewModel>.asyncSequences(repeat each states),
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -89,13 +99,14 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
 
     public init(
         wrappedValue viewModel: ViewModel,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            adapterArray: adapters,
+            adapterArray: [first] + adapters,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -132,17 +143,17 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         )
     }
 
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         _ viewModel: ViewModel,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            adapterArray: KMPState<ViewModel>.asyncSequences(
-                repeat each states
-            ),
+            adapterArray: [.asyncSequence(first)]
+                + KMPState<ViewModel>.asyncSequences(repeat each states),
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -150,13 +161,14 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
 
     public init(
         _ viewModel: ViewModel,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            adapterArray: adapters,
+            adapterArray: [first] + adapters,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -168,12 +180,26 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         updatePolicy: KMPUpdatePolicy,
         failurePolicy: KMPObservationFailurePolicy
     ) {
+        self.init(
+            viewModel,
+            source: .explicit(adapterArray),
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
+    private init(
+        _ viewModel: ViewModel,
+        source: KMPObservationSource<ViewModel>,
+        updatePolicy: KMPUpdatePolicy,
+        failurePolicy: KMPObservationFailurePolicy
+    ) {
         input = viewModel
-        states = adapterArray
+        self.source = source
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 viewModel,
-                states: adapterArray,
+                source: source,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: false
@@ -183,6 +209,6 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
 
     public mutating func update() {
         _storage.update()
-        storage.rebind(to: input, states: states)
+        storage.rebind(to: input, source: source)
     }
 }
