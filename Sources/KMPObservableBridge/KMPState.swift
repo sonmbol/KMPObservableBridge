@@ -18,7 +18,16 @@ public typealias KMPNativeFlow<Output, Failure: Error, Unit> = (
 ///
 /// The flow's elements are not cached by Swift. They only tell SwiftUI that the
 /// model's Kotlin-owned properties should be read again.
-public protocol KMPNativeObservable: AnyObject {
+@MainActor
+public protocol KMPAutomaticallyObservable: AnyObject {
+    func kmpObserveAutomatically(
+        notify: @escaping KMPState<Self>.Notify,
+        reportError: @escaping KMPState<Self>.ReportError
+    ) -> KMPObservation
+}
+
+@MainActor
+public protocol KMPNativeObservable: KMPAutomaticallyObservable {
     associatedtype KMPObservationOutput
     associatedtype KMPObservationFailure: Error
     associatedtype KMPObservationUnit
@@ -84,6 +93,13 @@ public final class KMPObservation {
     public static var empty: KMPObservation {
         KMPObservation {}
     }
+
+    /// Combines observations into one idempotent lifecycle handle.
+    public static func group(_ observations: KMPObservation...) -> KMPObservation {
+        KMPObservation {
+            observations.forEach { $0.cancel() }
+        }
+    }
 }
 
 public extension KMPObservation {
@@ -108,6 +124,17 @@ public struct KMPState<ViewModel: AnyObject> {
     ) -> KMPObservation
 
     let observe: Observer
+
+    /// Starts this state adapter outside a wrapper.
+    ///
+    /// This is primarily used by build-time generated model conformances.
+    public func startObservation(
+        on viewModel: ViewModel,
+        notify: @escaping Notify,
+        reportError: @escaping ReportError
+    ) -> KMPObservation {
+        observe(viewModel, notify, reportError)
+    }
 
     private init(observe: @escaping Observer) {
         self.observe = observe
@@ -240,5 +267,19 @@ public struct KMPState<ViewModel: AnyObject> {
         ) -> KMPObservation
     ) -> Self {
         Self(observe: observe)
+    }
+}
+
+public extension KMPNativeObservable {
+    @MainActor
+    func kmpObserveAutomatically(
+        notify: @escaping KMPState<Self>.Notify,
+        reportError: @escaping KMPState<Self>.ReportError
+    ) -> KMPObservation {
+        KMPState<Self>.automatic().startObservation(
+            on: self,
+            notify: notify,
+            reportError: reportError
+        )
     }
 }

@@ -33,6 +33,13 @@ private var profile = ProfileViewModel()
 The explicit `state:` form remains the universal option. The automatic form
 removes the key path without requiring a framework-owned Kotlin superclass.
 
+For SKIE frameworks, the optional `kmp-observable-bridge-generator` executable
+can inspect the framework after its Gradle build and generate the
+``KMPAutomaticallyObservable`` conformances. Add its generated Swift file to
+the application target before using the same no-state wrapper syntax. Projects
+that do not run the generator continue using the explicit `state:` or `states:`
+initializers.
+
 ## Topics
 
 ### Ownership
@@ -55,5 +62,6 @@ removes the key path without requiring a framework-owned Kotlin superclass.
 - ``KMPUpdatePolicy``
 - ``KMPObservationFailurePolicy``
 - ``KMPNativeObservable``
+- ``KMPAutomaticallyObservable``
 - ``KMPNativeFlow``
 - ``KMPValueProperty``

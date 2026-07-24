@@ -107,6 +107,23 @@ final class KMPObservableBridgeTests: XCTestCase {
         }
     }
 
+    /// Mirrors the conformance emitted by the build-time SKIE generator.
+    private final class GeneratedStyleModel: KMPAutomaticallyObservable {
+        let state = PassthroughSubject<Int, Never>()
+
+        func kmpObserveAutomatically(
+            notify: @escaping KMPState<GeneratedStyleModel>.Notify,
+            reportError: @escaping KMPState<GeneratedStyleModel>.ReportError
+        ) -> KMPObservation {
+            KMPState<GeneratedStyleModel>.publisher(\.state)
+                .startObservation(
+                    on: self,
+                    notify: notify,
+                    reportError: reportError
+                )
+        }
+    }
+
     func testObservationCancellationIsIdempotent() {
         var cancellationCount = 0
         let observation = KMPObservation {
@@ -195,6 +212,22 @@ final class KMPObservableBridgeTests: XCTestCase {
         let observedModel = NativeFlowModel()
         let owned = KMPStateObject(wrappedValue: ownedModel)
         let observed = KMPObservedObject(observedModel)
+
+        XCTAssertTrue(owned.wrappedValue === ownedModel)
+        XCTAssertTrue(observed.wrappedValue === observedModel)
+    }
+
+    func testGeneratedAutomaticConformanceSupportsBothWrappers() {
+        let ownedModel = GeneratedStyleModel()
+        let observedModel = GeneratedStyleModel()
+        let owned = KMPStateObject(
+            wrappedValue: ownedModel,
+            updatePolicy: .immediate
+        )
+        let observed = KMPObservedObject(
+            wrappedValue: observedModel,
+            updatePolicy: .immediate
+        )
 
         XCTAssertTrue(owned.wrappedValue === ownedModel)
         XCTAssertTrue(observed.wrappedValue === observedModel)

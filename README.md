@@ -454,7 +454,69 @@ let state = profile.profileStateValue
 This direct path keeps the bridge core independent of the NativeCoroutines
 Swift package while propagating cancellation to the Kotlin collection.
 
-### Optional automatic ViewModel observation
+### Optional automatic SKIE observation
+
+SKIE users can remove state key paths from the property-wrapper declaration by
+running the package's generator after the shared framework is built. The
+generator inspects the compiled framework, finds public SKIE `StateFlow`
+properties, and emits `KMPAutomaticallyObservable` conformances:
+
+```swift
+@KMPStateObject
+private var profile = ProfileViewModel()
+
+struct DetailView: View {
+    @KMPObservedObject private var profile: ProfileViewModel
+
+    init(profile: ProfileViewModel) {
+        _profile = KMPObservedObject(wrappedValue: profile)
+    }
+}
+```
+
+Add one Run Script phase before Compile Sources. Keep your existing Gradle
+framework build first, then invoke the generator:
+
+```sh
+set -eu
+
+cd "$SRCROOT/.."
+./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon
+
+GENERATED_DIR="$SRCROOT/iosApp/Generated/KMPObservableBridge"
+mkdir -p "$GENERATED_DIR"
+
+KMP_OBSERVABLE_SDKROOT="$SDKROOT" env -u SDKROOT \
+    xcrun swift run \
+    --package-path "/path/to/KMPObservableBridge" \
+    kmp-observable-bridge-generator \
+    --framework "$SRCROOT/../shared/build/xcode-frameworks/$CONFIGURATION/$SDK_NAME/shared.framework" \
+    --module shared \
+    --output "$GENERATED_DIR/KMPObservableBridge.generated.swift"
+```
+
+Create the `Generated/KMPObservableBridge` group in Xcode once, add
+`KMPObservableBridge.generated.swift` to the application target's Compile
+Sources, and declare the same file under the Run Script's Output Files. Commit
+the generated file so a clean checkout has a valid Xcode build graph; each
+build replaces it atomically. Do not edit it manually.
+
+This mode is optional. Without the generator, all explicit `state:` and
+`states:` initializers continue to work exactly as before:
+
+```swift
+@KMPStateObject(
+    wrappedValue: ProfileViewModel(),
+    states: \.profileState, \.permissionsState
+)
+private var profile
+```
+
+The generator observes every supported public SKIE StateFlow property on each
+exported Kotlin class. Use explicit key paths when you intentionally want to
+observe only a subset.
+
+### Optional automatic KMP-NativeCoroutines observation
 
 Automatic observation requires an explicit Kotlin contract; Swift cannot
 discover arbitrary flow properties through Objective-C reflection. Expose one

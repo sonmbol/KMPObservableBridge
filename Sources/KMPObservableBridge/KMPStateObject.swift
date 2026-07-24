@@ -14,17 +14,24 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         storage
     }
 
-    /// Creates an opt-in automatically observable Kotlin model.
+    /// Creates a model using its build-time generated observation list.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
-    ) where ViewModel: KMPNativeObservable {
+    ) where ViewModel: KMPAutomaticallyObservable {
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
-                states: [.automatic()],
+                states: [
+                    .callback { viewModel, notify, reportError in
+                        viewModel.kmpObserveAutomatically(
+                            notify: notify,
+                            reportError: reportError
+                        )
+                    },
+                ],
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -77,14 +84,16 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     }
 
     /// Creates a model and observes any number of heterogeneous streams.
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
-        let sources = KMPState<ViewModel>.asyncSequences(repeat each states)
+        let sources = [.asyncSequence(first)]
+            + KMPState<ViewModel>.asyncSequences(repeat each states)
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
@@ -100,7 +109,8 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     /// Creates a model with advanced or mixed observation adapters.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
@@ -108,7 +118,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
-                states: adapters,
+                states: [first] + adapters,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -163,15 +173,17 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     }
 
     /// Resolves a model lazily and observes any number of state streams.
-    public init<Injector, each Sequence: AsyncSequence>(
+    public init<Injector, First: AsyncSequence, each Sequence: AsyncSequence>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) {
-        let sources = KMPState<ViewModel>.asyncSequences(repeat each states)
+        let sources = [.asyncSequence(first)]
+            + KMPState<ViewModel>.asyncSequences(repeat each states)
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeInjector()[keyPath: keyPath],
@@ -188,7 +200,8 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
     public init<Injector>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
@@ -196,7 +209,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 makeInjector()[keyPath: keyPath],
-                states: adapters,
+                states: [first] + adapters,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,

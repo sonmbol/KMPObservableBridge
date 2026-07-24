@@ -15,10 +15,17 @@ let package = Package(
             name: "KMPObservableBridge",
             targets: ["KMPObservableBridge"]
         ),
+        .executable(
+            name: "kmp-observable-bridge-generator",
+            targets: ["KMPObservableBridgeGenerator"]
+        ),
     ],
     targets: [
         .target(
             name: "KMPObservableBridge"
+        ),
+        .executableTarget(
+            name: "KMPObservableBridgeGenerator"
         ),
         .testTarget(
             name: "KMPObservableBridgeTests",

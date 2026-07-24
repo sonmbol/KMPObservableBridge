@@ -20,10 +20,17 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         wrappedValue viewModel: ViewModel,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
-    ) where ViewModel: KMPNativeObservable {
+    ) where ViewModel: KMPAutomaticallyObservable {
         self.init(
             viewModel,
-            adapterArray: [.automatic()],
+            adapterArray: [
+                .callback { viewModel, notify, reportError in
+                    viewModel.kmpObserveAutomatically(
+                        notify: notify,
+                        reportError: reportError
+                    )
+                },
+            ],
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -33,10 +40,17 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         _ viewModel: ViewModel,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
-    ) where ViewModel: KMPNativeObservable {
+    ) where ViewModel: KMPAutomaticallyObservable {
         self.init(
             viewModel,
-            adapterArray: [.automatic()],
+            adapterArray: [
+                .callback { viewModel, notify, reportError in
+                    viewModel.kmpObserveAutomatically(
+                        notify: notify,
+                        reportError: reportError
+                    )
+                },
+            ],
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -73,15 +87,17 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         )
     }
 
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         wrappedValue viewModel: ViewModel,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            states: repeat each states,
+            adapterArray: [.asyncSequence(first)]
+                + KMPState<ViewModel>.asyncSequences(repeat each states),
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -89,13 +105,14 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
 
     public init(
         wrappedValue viewModel: ViewModel,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            adapterArray: adapters,
+            adapterArray: [first] + adapters,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -132,17 +149,17 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         )
     }
 
-    public init<each Sequence: AsyncSequence>(
+    public init<First: AsyncSequence, each Sequence: AsyncSequence>(
         _ viewModel: ViewModel,
-        states: repeat KeyPath<ViewModel, each Sequence>,
+        states first: KeyPath<ViewModel, First>,
+        _ states: repeat KeyPath<ViewModel, each Sequence>,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            adapterArray: KMPState<ViewModel>.asyncSequences(
-                repeat each states
-            ),
+            adapterArray: [.asyncSequence(first)]
+                + KMPState<ViewModel>.asyncSequences(repeat each states),
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -150,13 +167,14 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
 
     public init(
         _ viewModel: ViewModel,
-        adapters: KMPState<ViewModel>...,
+        adapters first: KMPState<ViewModel>,
+        _ adapters: KMPState<ViewModel>...,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
     ) {
         self.init(
             viewModel,
-            adapterArray: adapters,
+            adapterArray: [first] + adapters,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )

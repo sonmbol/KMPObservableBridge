@@ -96,11 +96,7 @@ private struct ArticleContentView: View {
 }
 
 private struct DirectStateObjectExampleView: View {
-    @KMPStateObject(
-        wrappedValue: BridgeExampleViewModel(),
-        states: \.counterState, \.messageState
-    )
-    private var example
+    @KMPStateObject private var example = BridgeExampleViewModel()
 
     var body: some View {
         NavigationView {
@@ -166,10 +162,7 @@ private struct BridgeExampleChildView: View {
     @KMPObservedObject private var example: BridgeExampleViewModel
 
     init(viewModel: BridgeExampleViewModel) {
-        _example = KMPObservedObject(
-            viewModel,
-            states: \.counterState, \.messageState
-        )
+        _example = KMPObservedObject(viewModel)
     }
 
     var body: some View {
@@ -206,8 +199,7 @@ private struct BridgeExampleContentView: View {
         self.title = title
         self.subtitle = subtitle
         _example = KMPObservedObject(
-            viewModel,
-            states: \.counterState, \.messageState
+            viewModel
         )
     }
 
