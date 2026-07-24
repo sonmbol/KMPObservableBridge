@@ -15,9 +15,9 @@ truth, and SwiftUI continues calling the real Kotlin ViewModel directly.
 KMP-NativeCoroutines, Combine, callbacks, and custom coroutine adapters.**
 
 The core has no Kotlin-side component, superclass, annotation, compiler plugin,
-or third-party runtime dependency. Explicit state key paths are intentional:
-arbitrary generated KMP streams cannot be discovered reliably through Swift or
-Objective-C reflection without framework-specific metadata.
+code generator, or third-party runtime dependency. SKIE StateFlows are
+discovered lazily through their exported Objective-C getters; explicit state
+key paths remain available when deterministic selection is preferred.
 
 Keywords: SwiftUI, Kotlin Multiplatform, KMP, KMM, StateFlow, coroutines,
 Kotlin/Native, iOS, SKIE, KMP-NativeCoroutines, ObservableObject, Observation,
@@ -117,7 +117,6 @@ the Kotlin state.
 struct ProfileScreen: View {
     @KMPStateObject(
         wrappedValue: ProfileViewModel(repository: Dependencies.profile),
-        state: \.state,
         dispose: { $0.clear() }
     )
     private var viewModel
@@ -142,8 +141,9 @@ struct ProfileScreen: View {
 ```
 
 There is no Swift adapter object and no duplicated `@Published` state.
-The default `.coalesced` update policy avoids redundant redraws when several
-flows emit in the same main-actor turn.
+Automatic SKIE observation and the `.coalesced` update policy are the defaults.
+Use an explicit `state:` key path for deterministic selection or
+`observation: .none` to create no automatic subscription.
 
 ## Installation
 

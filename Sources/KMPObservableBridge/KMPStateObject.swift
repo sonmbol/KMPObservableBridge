@@ -74,7 +74,7 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         )
     }
 
-    /// Creates a model using its build-time generated observation list.
+    /// Creates a model using its explicit automatic-observation contract.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
         updatePolicy: KMPUpdatePolicy = .coalesced,

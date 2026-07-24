@@ -107,7 +107,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         }
     }
 
-    /// Mirrors the conformance emitted by the build-time SKIE generator.
+    /// Represents an application-defined automatic-observation conformance.
     private final class GeneratedStyleModel: KMPAutomaticallyObservable {
         let state = PassthroughSubject<Int, Never>()
 
