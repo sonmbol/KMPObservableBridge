@@ -224,7 +224,8 @@ private var profile
 
 ```swift
 struct ProfileContent: View {
-    @KMPObservedObject private var profile: ProfileViewModel
+    @KMPObservedObject(observation: .automaticSKIE)
+    private var profile: ProfileViewModel
 
     init(viewModel: ProfileViewModel) {
         _profile = KMPObservedObject(viewModel, state: \.state)
@@ -454,55 +455,38 @@ let state = profile.profileStateValue
 This direct path keeps the bridge core independent of the NativeCoroutines
 Swift package while propagating cancellation to the Kotlin collection.
 
-### Optional automatic SKIE observation
+### Experimental automatic SKIE observation
 
-SKIE users can remove state key paths from the property-wrapper declaration by
-running the package's generator after the shared framework is built. The
-generator inspects the compiled framework, finds public SKIE `StateFlow`
-properties, and emits `KMPAutomaticallyObservable` conformances:
+SKIE users can explicitly opt into omitting state key paths. KMPObservableBridge
+installs a guarded Objective-C runtime hook on the Kotlin ViewModel and lazily
+observes each `StateFlow` when application code first reads its getter:
 
 ```swift
-@KMPStateObject
+@KMPStateObject(observation: .automaticSKIE)
 private var profile = ProfileViewModel()
 
 struct DetailView: View {
     @KMPObservedObject private var profile: ProfileViewModel
 
     init(profile: ProfileViewModel) {
-        _profile = KMPObservedObject(wrappedValue: profile)
+        _profile = KMPObservedObject(
+            profile,
+            observation: .automaticSKIE
+        )
     }
 }
 ```
 
-Add one Run Script phase before Compile Sources. Keep your existing Gradle
-framework build first, then invoke the generator:
+There is no generated file, build script, Swift extension, `$` registration,
+or Kotlin bridge dependency. Kotlin/Native does not export property metadata,
+so the bridge does not enumerate or invoke properties speculatively. It wraps
+eligible Objective-C getters and inspects only values returned by getters the
+view naturally accesses. Non-flow values are ignored, repeated reads are
+deduplicated, and a getter returning a replacement flow cancels the old
+collection before observing the new identity.
 
-```sh
-set -eu
-
-cd "$SRCROOT/.."
-./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon
-
-GENERATED_DIR="$SRCROOT/iosApp/Generated/KMPObservableBridge"
-mkdir -p "$GENERATED_DIR"
-
-KMP_OBSERVABLE_SDKROOT="$SDKROOT" env -u SDKROOT \
-    xcrun swift run \
-    --package-path "/path/to/KMPObservableBridge" \
-    kmp-observable-bridge-generator \
-    --framework "$SRCROOT/../shared/build/xcode-frameworks/$CONFIGURATION/$SDK_NAME/shared.framework" \
-    --module shared \
-    --output "$GENERATED_DIR/KMPObservableBridge.generated.swift"
-```
-
-Create the `Generated/KMPObservableBridge` group in Xcode once, add
-`KMPObservableBridge.generated.swift` to the application target's Compile
-Sources, and declare the same file under the Run Script's Output Files. Commit
-the generated file so a clean checkout has a valid Xcode build graph; each
-build replaces it atomically. Do not edit it manually.
-
-This mode is optional. Without the generator, all explicit `state:` and
-`states:` initializers continue to work exactly as before:
+Only accessed flows are observed. Explicit `state:` and `states:` remain the
+deterministic fallback and let an application intentionally select a subset:
 
 ```swift
 @KMPStateObject(
@@ -512,9 +496,34 @@ This mode is optional. Without the generator, all explicit `state:` and
 private var profile
 ```
 
-The generator observes every supported public SKIE StateFlow property on each
-exported Kotlin class. Use explicit key paths when you intentionally want to
-observe only a subset.
+#### Why automatic SKIE observation is opt-in
+
+The syntax is convenient, but the mechanism has stricter compatibility and
+debugging tradeoffs than explicit key paths:
+
+- It uses process-wide Objective-C method interception for exported Kotlin
+  getters.
+- It dynamically calls SKIE's generated `SkieColdFlowIterator` ABI, which SKIE
+  does not document as a stable third-party runtime API.
+- A future Kotlin/Native or SKIE release may change generated names or method
+  signatures.
+- Another runtime library could intercept the same getter.
+- Only flows whose getters are actually read are observed, so conditional UI
+  can establish subscriptions at different times.
+- Failures caused by an incompatible generated ABI are harder to diagnose than
+  statically typed `AsyncSequence` key paths.
+
+The runtime checks the framework image, protocol, iterator class, and required
+selectors before activating. If compatibility cannot be established,
+discovery safely does nothing. It never invokes unknown Kotlin getters or
+methods merely to inspect a model, deduplicates repeated reads, cancels
+replaced flows, and treats lifecycle cancellation as non-failure.
+
+Use `.automaticSKIE` when its reduced declaration ceremony is worth those
+tradeoffs and the application's Kotlin/SKIE matrix is tested in CI. Use
+explicit `state:` or `states:` for maximum production stability. This path
+applies only to SKIE `StateFlow`; KMP-NativeCoroutines uses the separate
+structural `NativeFlow` integration below.
 
 ### Optional automatic KMP-NativeCoroutines observation
 
@@ -568,11 +577,10 @@ never disposes an externally owned Kotlin model.
 into writable Swift state. Its canonical flow only invalidates SwiftUI; reads
 and mutations still go directly to the Kotlin model.
 
-Choose the explicit `state:` form for arbitrary existing models and the
-automatic form when the shared model can expose this convention. Achieving
-zero-configuration observation without either contract would require a Kotlin
-runtime/base class such as KMP-ObservableViewModel; the bridge deliberately
-does not pretend Swift reflection can provide that behavior.
+Choose the explicit `state:` form for arbitrary existing models and
+KMP-NativeCoroutines models without a canonical observation flow. Automatic
+SKIE observation uses lazy getter interception rather than Swift reflection:
+`Mirror` cannot enumerate Kotlin/Native computed getters.
 
 `Examples/DailyPulse` compiles both the SKIE and KMP-NativeCoroutines paths
 against a generated Kotlin framework.

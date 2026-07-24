@@ -1,4 +1,14 @@
 import Foundation
+
+/// Selects an optional automatic interoperability mechanism.
+public enum KMPAutomaticObservation {
+    /// Lazily discovers SKIE StateFlows through their Objective-C getters.
+    ///
+    /// This is an experimental compatibility mode because it relies on
+    /// Objective-C method interception and SKIE's generated iterator ABI.
+    /// Prefer explicit `state:` or `states:` key paths for maximum stability.
+    case automaticSKIE
+}
 import OSLog
 
 /// Controls how frequently state emissions invalidate SwiftUI.

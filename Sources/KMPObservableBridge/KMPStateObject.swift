@@ -14,6 +14,52 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         storage
     }
 
+    /// Creates a model using an explicitly selected automatic integration.
+    ///
+    /// `.automaticSKIE` is experimental. Explicit `state:`, `states:`, and
+    /// `adapters:` initializers are the production-stable alternatives.
+    public init(
+        wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
+        observation: KMPAutomaticObservation,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) {
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                makeViewModel(),
+                states: [],
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose,
+                automaticStateFlowDiscovery: true
+            )
+        )
+    }
+
+    /// Resolves a model using an explicitly selected automatic integration.
+    public init<Injector>(
+        injector makeInjector: @autoclosure @escaping () -> Injector,
+        viewModel keyPath: KeyPath<Injector, ViewModel>,
+        observation: KMPAutomaticObservation,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) {
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                makeInjector()[keyPath: keyPath],
+                states: [],
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose,
+                automaticStateFlowDiscovery: true
+            )
+        )
+    }
+
     /// Creates a model using its build-time generated observation list.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,

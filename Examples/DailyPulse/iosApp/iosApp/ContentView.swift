@@ -54,7 +54,7 @@ private struct ArticleInjectorExampleView: View {
     @KMPStateObject(
         injector: ArticleInjector(),
         viewModel: \.articleViewModel,
-        state: \.articleState
+        observation: .automaticSKIE
     )
     private var article
 
@@ -67,12 +67,13 @@ private struct ArticleInjectorExampleView: View {
 }
 
 private struct ArticleContentView: View {
-    @KMPObservedObject private var article: ArticleViewModel
+    @KMPObservedObject(observation: .automaticSKIE)
+    private var article: ArticleViewModel
 
     init(viewModel: ArticleViewModel) {
         _article = KMPObservedObject(
             viewModel,
-            state: \.articleState
+            observation: .automaticSKIE
         )
     }
 
@@ -96,11 +97,8 @@ private struct ArticleContentView: View {
 }
 
 private struct DirectStateObjectExampleView: View {
-    @KMPStateObject(
-        wrappedValue: BridgeExampleViewModel(),
-        states: \.counterState, \.messageState
-    )
-    private var example
+    @KMPStateObject(observation: .automaticSKIE)
+    private var example = BridgeExampleViewModel()
 
     var body: some View {
         NavigationView {
@@ -115,11 +113,8 @@ private struct DirectStateObjectExampleView: View {
 }
 
 private struct ObservedObjectExampleView: View {
-    @KMPStateObject(
-        wrappedValue: BridgeExampleViewModel(),
-        states: \.counterState, \.messageState
-    )
-    private var example
+    @KMPStateObject(observation: .automaticSKIE)
+    private var example = BridgeExampleViewModel()
 
     var body: some View {
         NavigationView {
@@ -163,12 +158,13 @@ private struct BridgeExampleEnvironmentView: View {
 }
 
 private struct BridgeExampleChildView: View {
-    @KMPObservedObject private var example: BridgeExampleViewModel
+    @KMPObservedObject(observation: .automaticSKIE)
+    private var example: BridgeExampleViewModel
 
     init(viewModel: BridgeExampleViewModel) {
         _example = KMPObservedObject(
             viewModel,
-            states: \.counterState, \.messageState
+            observation: .automaticSKIE
         )
     }
 
@@ -193,7 +189,8 @@ private struct BridgeExampleChildView: View {
 }
 
 private struct BridgeExampleContentView: View {
-    @KMPObservedObject private var example: BridgeExampleViewModel
+    @KMPObservedObject(observation: .automaticSKIE)
+    private var example: BridgeExampleViewModel
 
     let title: String
     let subtitle: String
@@ -207,7 +204,7 @@ private struct BridgeExampleContentView: View {
         self.subtitle = subtitle
         _example = KMPObservedObject(
             viewModel,
-            states: \.counterState, \.messageState
+            observation: .automaticSKIE
         )
     }
 

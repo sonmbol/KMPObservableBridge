@@ -31,6 +31,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     private var pendingChange: Task<Void, Never>?
     private var modernRevision: AnyObject?
     private let modernObservationEnabled: Bool
+    private let automaticStateFlowDiscovery: Bool
 
     init(
         _ wrappedValue: ViewModel,
@@ -39,12 +40,14 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         failurePolicy: KMPObservationFailurePolicy,
         ownsModel: Bool,
         disposer: Disposer? = nil,
-        modernObservationEnabled: Bool = true
+        modernObservationEnabled: Bool = true,
+        automaticStateFlowDiscovery: Bool = false
     ) {
         self.wrappedValue = wrappedValue
         self.updatePolicy = updatePolicy
         self.failurePolicy = failurePolicy
         self.modernObservationEnabled = modernObservationEnabled
+        self.automaticStateFlowDiscovery = automaticStateFlowDiscovery
         if ownsModel {
             self.disposer = disposer ?? { model in
                 (model as? any KMPDisposable)?.dispose()
@@ -84,7 +87,22 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         generation &+= 1
         let activeGeneration = generation
 
-        observations = states.map { state in
+        var sources = states
+        #if canImport(ObjectiveC)
+        if automaticStateFlowDiscovery {
+            sources.append(
+                .custom { viewModel, notify, reportError in
+                    KMPAutomaticStateFlowRuntime.observe(
+                        viewModel,
+                        notify: notify,
+                        reportError: reportError
+                    )
+                }
+            )
+        }
+        #endif
+
+        observations = sources.map { state in
             state.observe(
                 wrappedValue,
                 { [weak self] in

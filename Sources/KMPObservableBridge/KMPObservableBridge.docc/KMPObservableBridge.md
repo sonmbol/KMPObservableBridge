@@ -10,11 +10,8 @@ external model, and ``KMPEnvironmentObject`` for a projected store injected by
 an ancestor.
 
 ```swift
-@KMPStateObject(
-    wrappedValue: ProfileViewModel(),
-    state: \.state
-)
-private var profile
+@KMPStateObject(observation: .automaticSKIE)
+private var profile = ProfileViewModel()
 ```
 
 Kotlin remains the source of truth. The bridge observes emissions but never
@@ -33,12 +30,12 @@ private var profile = ProfileViewModel()
 The explicit `state:` form remains the universal option. The automatic form
 removes the key path without requiring a framework-owned Kotlin superclass.
 
-For SKIE frameworks, the optional `kmp-observable-bridge-generator` executable
-can inspect the framework after its Gradle build and generate the
-``KMPAutomaticallyObservable`` conformances. Add its generated Swift file to
-the application target before using the same no-state wrapper syntax. Projects
-that do not run the generator continue using the explicit `state:` or `states:`
-initializers.
+For SKIE frameworks, explicitly selecting `.automaticSKIE` lets wrappers
+lazily discover public StateFlows when their exported getters are naturally
+read. This requires no generated file or build script, but is experimental
+because it uses Objective-C method interception and SKIE's generated iterator
+ABI. The explicit `state:` and `states:` initializers remain the stable
+defaults and allow selecting a specific subset.
 
 ## Topics
 
@@ -61,6 +58,7 @@ initializers.
 - ``KMPObservation``
 - ``KMPUpdatePolicy``
 - ``KMPObservationFailurePolicy``
+- ``KMPAutomaticObservation``
 - ``KMPNativeObservable``
 - ``KMPAutomaticallyObservable``
 - ``KMPNativeFlow``

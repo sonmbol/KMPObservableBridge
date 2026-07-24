@@ -1,19 +1,66 @@
+import Combine
 import SwiftUI
+
+@MainActor
+private final class KMPObservedObjectHolder<ViewModel: AnyObject>:
+    @preconcurrency ObservableObject
+{
+    let objectWillChange = ObservableObjectPublisher()
+    let store: KMPViewModelStore<ViewModel>?
+    private var forwarding: AnyCancellable?
+
+    init(store: KMPViewModelStore<ViewModel>?) {
+        self.store = store
+        forwarding = store?.objectWillChange.sink { [weak self] in
+            self?.objectWillChange.send()
+        }
+    }
+}
 
 /// Observes a KMP ViewModel owned outside this SwiftUI view.
 @MainActor
 @propertyWrapper
 public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicProperty {
-    @StateObject private var storage: KMPViewModelStore<ViewModel>
-    private let input: ViewModel
+    @StateObject private var holder: KMPObservedObjectHolder<ViewModel>
+    private let input: ViewModel?
     private let states: [KMPState<ViewModel>]
 
     public var wrappedValue: ViewModel {
-        storage.value
+        requiredStore.value
     }
 
     public var projectedValue: KMPViewModelStore<ViewModel> {
-        storage
+        requiredStore
+    }
+
+    /// Declares deferred experimental SKIE observation.
+    ///
+    /// Assign the backing wrapper in the enclosing view's initializer. Access
+    /// before that assignment is a programmer error and traps with a message.
+    public init(
+        observation: KMPAutomaticObservation
+    ) {
+        input = nil
+        states = []
+        _holder = StateObject(
+            wrappedValue: KMPObservedObjectHolder(store: nil)
+        )
+    }
+
+    /// Observes an external model using an explicitly selected integration.
+    public init(
+        _ viewModel: ViewModel,
+        observation: KMPAutomaticObservation,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) {
+        self.init(
+            viewModel,
+            adapterArray: [],
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy,
+            automaticStateFlowDiscovery: true
+        )
     }
 
     public init(
@@ -184,23 +231,39 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         _ viewModel: ViewModel,
         adapterArray: [KMPState<ViewModel>],
         updatePolicy: KMPUpdatePolicy,
-        failurePolicy: KMPObservationFailurePolicy
+        failurePolicy: KMPObservationFailurePolicy,
+        automaticStateFlowDiscovery: Bool = false
     ) {
         input = viewModel
         states = adapterArray
-        _storage = StateObject(
-            wrappedValue: KMPViewModelStore(
+        let store = KMPViewModelStore(
                 viewModel,
                 states: adapterArray,
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
-                ownsModel: false
+                ownsModel: false,
+                automaticStateFlowDiscovery: automaticStateFlowDiscovery
             )
+        _holder = StateObject(
+            wrappedValue: KMPObservedObjectHolder(store: store)
         )
     }
 
     public mutating func update() {
-        _storage.update()
-        storage.rebind(to: input, states: states)
+        _holder.update()
+        guard let input, let store = holder.store else {
+            return
+        }
+        store.rebind(to: input, states: states)
+    }
+
+    private var requiredStore: KMPViewModelStore<ViewModel> {
+        guard let store = holder.store else {
+            preconditionFailure(
+                "KMPObservedObject must be initialized by assigning its "
+                    + "backing storage in the enclosing view initializer."
+            )
+        }
+        return store
     }
 }
