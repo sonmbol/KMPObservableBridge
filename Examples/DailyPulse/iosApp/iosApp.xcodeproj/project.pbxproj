@@ -15,7 +15,6 @@
 		94A532343011F92D0027F770 /* BridgeExampleCombineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */; };
 		94A532363011FA2D0027F770 /* KMPObservableBridgeSKIE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */; };
 		94A532383011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */; };
-		A10000013020000100000001 /* KMPObservableBridge.generated.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000023020000100000001 /* KMPObservableBridge.generated.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -41,7 +40,6 @@
 		94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeExampleCombineAdapter.swift; sourceTree = "<group>"; };
 		94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridgeSKIE.swift; sourceTree = "<group>"; };
 		94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridgeNativeCoroutines.swift; sourceTree = "<group>"; };
-		A10000023020000100000001 /* KMPObservableBridge.generated.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridge.generated.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,7 +84,6 @@
 			children = (
 				058557BA273AAA24004C7B11 /* Assets.xcassets */,
 				94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */,
-				A10000033020000100000001 /* Generated */,
 				94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */,
 				94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */,
 				7555FF82242A565900829871 /* ContentView.swift */,
@@ -95,22 +92,6 @@
 				058557D7273AAEEB004C7B11 /* Preview Content */,
 			);
 			path = iosApp;
-			sourceTree = "<group>";
-		};
-		A10000033020000100000001 /* Generated */ = {
-			isa = PBXGroup;
-			children = (
-				A10000043020000100000001 /* KMPObservableBridge */,
-			);
-			path = Generated;
-			sourceTree = "<group>";
-		};
-		A10000043020000100000001 /* KMPObservableBridge */ = {
-			isa = PBXGroup;
-			children = (
-				A10000023020000100000001 /* KMPObservableBridge.generated.swift */,
-			);
-			path = KMPObservableBridge;
 			sourceTree = "<group>";
 		};
 		7555FFB0242A642200829871 /* Frameworks */ = {
@@ -207,11 +188,10 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"$(SRCROOT)/iosApp/Generated/KMPObservableBridge/KMPObservableBridge.generated.swift",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\n\nexport JAVA_HOME=\"$(/usr/libexec/java_home -v 17)\"\n\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon\n\nGENERATED_DIR=\"$SRCROOT/iosApp/Generated/KMPObservableBridge\"\nmkdir -p \"$GENERATED_DIR\"\n\nKMP_OBSERVABLE_SDKROOT=\"$SDKROOT\" env -u SDKROOT \\\n    xcrun swift run \\\n    --package-path \"$SRCROOT/../../..\" \\\n    kmp-observable-bridge-generator \\\n    --framework \"$SRCROOT/../shared/build/xcode-frameworks/$CONFIGURATION/$SDK_NAME/shared.framework\" \\\n    --module shared \\\n    --output \"$GENERATED_DIR/KMPObservableBridge.generated.swift\"\n";
+			shellScript = "export JAVA_HOME=\"$(/usr/libexec/java_home -v 17)\"\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -224,7 +204,6 @@
 				94A532343011F92D0027F770 /* BridgeExampleCombineAdapter.swift in Sources */,
 				94A532363011FA2D0027F770 /* KMPObservableBridgeSKIE.swift in Sources */,
 				94A532383011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift in Sources */,
-				A10000013020000100000001 /* KMPObservableBridge.generated.swift in Sources */,
 				7555FF83242A565900829871 /* ContentView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
