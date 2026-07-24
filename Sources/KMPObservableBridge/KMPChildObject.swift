@@ -2,6 +2,11 @@ import Combine
 import SwiftUI
 
 /// Observes a non-optional child ViewModel owned by a parent KMP model.
+///
+/// Use this wrapper when the parent exposes a synchronous `Child` property
+/// whose value is guaranteed to exist. SwiftUI re-reads that property during
+/// `update()` and the store rebinds if its object identity changes. No parent
+/// flow subscription is needed, and `wrappedValue` remains non-optional.
 @MainActor
 @propertyWrapper
 public struct KMPChildObject<Parent: AnyObject, Child: AnyObject>: @preconcurrency DynamicProperty {
@@ -71,6 +76,13 @@ public struct KMPChildObject<Parent: AnyObject, Child: AnyObject>: @preconcurren
     }
 }
 
+/// Owns the two-level observation required by a Flow-backed optional child.
+///
+/// This is intentionally separate from `KMPChildObject`'s direct child store:
+/// it must observe the parent flow, handle `nil` and identity transitions,
+/// replace the child observation in deterministic order, and forward the
+/// current child's invalidations. It is private implementation detail; the
+/// parent continues to own the child lifecycle.
 @MainActor
 private final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
     @preconcurrency ObservableObject
@@ -175,6 +187,12 @@ private final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
 }
 
 /// Observes an optional child ViewModel emitted by a parent state flow.
+///
+/// Unlike `KMPChildObject`, this wrapper subscribes to the parent flow because
+/// the child may appear, disappear, or be replaced independently of SwiftUI
+/// updates. Its `wrappedValue` and projected store are therefore optional.
+/// Keeping a distinct wrapper preserves Kotlin nullability in Swift: guaranteed
+/// children stay `Child`, while Flow-backed optional children remain `Child?`.
 @MainActor
 @propertyWrapper
 public struct KMPOptionalChildObject<Parent: AnyObject, Child: AnyObject>:

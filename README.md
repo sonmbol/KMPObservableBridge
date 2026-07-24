@@ -375,7 +375,15 @@ Missing stores produce SwiftUI's normal missing-environment-object failure.
 
 ## Child ViewModels
 
-For a direct parent-owned child:
+The two child wrappers represent different Kotlin contracts, not duplicate
+APIs:
+
+| Kotlin child contract | Swift wrapper | Swift value | Observation topology |
+|---|---|---|---|
+| Synchronous property guaranteed to exist | `KMPChildObject` | `Child` | Re-read during SwiftUI updates and rebind by identity |
+| `StateFlow<Child?>` that may emit replacements or `null` | `KMPOptionalChildObject` | `Child?` | Observe the parent flow, then observe the current child |
+
+For a direct parent-owned child that is guaranteed to exist:
 
 ```swift
 @KMPChildObject(
@@ -399,6 +407,13 @@ private var details
 
 Child identity changes cancel old subscriptions before rebinding. The parent
 retains lifecycle ownership, so child wrappers never call `dispose()`.
+
+The optional wrapper uses a private `KMPOptionalChildStore` because it manages
+two observation levels: the parent flow that selects the child and the selected
+child's own state. It handles `nil`, child replacement, stale-emission
+suppression, and invalidation forwarding. Combining both public wrappers would
+force guaranteed children to become unnecessarily optional because a Swift
+property wrapper has one fixed `wrappedValue` type.
 
 ## Update policy
 
