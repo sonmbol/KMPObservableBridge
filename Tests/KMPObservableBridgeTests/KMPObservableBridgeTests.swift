@@ -3,6 +3,20 @@ import SwiftUI
 import XCTest
 @testable import KMPObservableBridge
 
+#if canImport(ObjectiveC)
+private final class ObjectiveCMethodFixture: NSObject {
+    @objc dynamic func objectValue() -> AnyObject? {
+        nil
+    }
+
+    @objc dynamic func transformedValue(
+        for input: AnyObject
+    ) -> AnyObject? {
+        input
+    }
+}
+#endif
+
 @MainActor
 final class KMPObservableBridgeTests: XCTestCase {
     private final class Model {
@@ -138,6 +152,34 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         XCTAssertEqual(cancellationCount, 1)
     }
+
+    #if canImport(ObjectiveC)
+    func testObjectiveCMethodValidationChecksArgumentCount() {
+        XCTAssertNotNil(
+            kmpMethod(
+                ObjectiveCMethodFixture.self,
+                selector: #selector(ObjectiveCMethodFixture.objectValue),
+                expectedArgumentCount: 2
+            )
+        )
+        XCTAssertNil(
+            kmpMethod(
+                ObjectiveCMethodFixture.self,
+                selector: #selector(ObjectiveCMethodFixture.objectValue),
+                expectedArgumentCount: 3
+            )
+        )
+        XCTAssertNotNil(
+            kmpMethod(
+                ObjectiveCMethodFixture.self,
+                selector: #selector(
+                    ObjectiveCMethodFixture.transformedValue(for:)
+                ),
+                expectedArgumentCount: 3
+            )
+        )
+    }
+    #endif
 
     func testObservationCancelsWhenReleased() {
         var cancellationCount = 0

@@ -23,6 +23,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
   `KMPObservationFailurePolicy`.
 - Coalescing is the default update behavior.
 - The package now ships a single library product with no generator executable.
+- Automatic SKIE compatibility results are cached per model class to avoid
+  repeated Objective-C protocol scans.
+- Debug diagnostics now identify unavailable automatic SKIE runtimes,
+  successfully discovered StateFlow getters, and incompatible iterator method
+  shapes.
+- Dynamic SKIE iterator methods are validated by Objective-C argument count
+  before invocation.
 
 ### Removed
 
