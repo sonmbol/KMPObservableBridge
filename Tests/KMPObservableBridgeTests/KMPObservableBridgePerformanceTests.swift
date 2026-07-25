@@ -46,4 +46,30 @@ final class KMPObservableBridgePerformanceTests: XCTestCase {
             }
         }
     }
+
+    func testCachedUnavailableAutomaticObservationSetup() {
+        _ = KMPViewModelStore(
+            Model(),
+            source: .automaticSKIE,
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+
+        measure {
+            for _ in 0..<1_000 {
+                autoreleasepool {
+                    _ = KMPViewModelStore(
+                        Model(),
+                        source: .automaticSKIE,
+                        updatePolicy: .coalesced,
+                        failurePolicy: .ignore,
+                        ownsModel: false,
+                        modernObservationEnabled: false
+                    )
+                }
+            }
+        }
+    }
 }

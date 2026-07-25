@@ -1,6 +1,7 @@
 #if canImport(ObjectiveC)
 import Foundation
 import ObjectiveC.runtime
+import OSLog
 
 /// Runtime support for lazily observing SKIE-exported StateFlows.
 ///
@@ -33,6 +34,11 @@ enum KMPAutomaticStateFlowRuntime {
 private final class KMPStateFlowRuntimeRegistry: @unchecked Sendable {
     static let shared = KMPStateFlowRuntimeRegistry()
 
+    private enum DescriptorCacheEntry {
+        case available(KMPStateFlowRuntimeDescriptor)
+        case unavailable
+    }
+
     private struct MethodKey: Hashable {
         let type: ObjectIdentifier
         let selector: Selector
@@ -41,6 +47,9 @@ private final class KMPStateFlowRuntimeRegistry: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     private var installedMethods: Set<MethodKey> = []
     private var replacementImplementations: [MethodKey: IMP] = [:]
+    private var descriptorCache: [
+        ObjectIdentifier: DescriptorCacheEntry
+    ] = [:]
     private var associationKey: UInt8 = 0
 
     private init() {}
@@ -56,7 +65,7 @@ private final class KMPStateFlowRuntimeRegistry: @unchecked Sendable {
 
             guard
                 let modelClass: AnyClass = object_getClass(model),
-                let descriptor = runtimeDescriptor(for: modelClass)
+                let descriptor = cachedRuntimeDescriptor(for: modelClass)
             else {
                 return nil
             }
@@ -73,7 +82,32 @@ private final class KMPStateFlowRuntimeRegistry: @unchecked Sendable {
         }
     }
 
-    private func runtimeDescriptor(
+    private func cachedRuntimeDescriptor(
+        for modelClass: AnyClass
+    ) -> KMPStateFlowRuntimeDescriptor? {
+        let key = ObjectIdentifier(modelClass)
+        if let cached = descriptorCache[key] {
+            switch cached {
+            case .available(let descriptor):
+                return descriptor
+            case .unavailable:
+                return nil
+            }
+        }
+
+        guard let descriptor = resolveRuntimeDescriptor(
+            for: modelClass
+        ) else {
+            descriptorCache[key] = .unavailable
+            logUnavailableRuntime(for: modelClass)
+            return nil
+        }
+
+        descriptorCache[key] = .available(descriptor)
+        return descriptor
+    }
+
+    private func resolveRuntimeDescriptor(
         for modelClass: AnyClass
     ) -> KMPStateFlowRuntimeDescriptor? {
         guard let modelImage = class_getImageName(modelClass) else {
@@ -109,6 +143,23 @@ private final class KMPStateFlowRuntimeRegistry: @unchecked Sendable {
             )
         }
         return nil
+    }
+
+    private func logUnavailableRuntime(for modelClass: AnyClass) {
+        #if DEBUG
+        Logger(
+            subsystem: "KMPObservableBridge",
+            category: "AutomaticSKIE"
+        ).warning(
+            """
+            Automatic SKIE observation is unavailable for \
+            \(String(reflecting: modelClass), privacy: .public). \
+            No compatible StateFlow protocol and SkieColdFlowIterator were \
+            found in the model framework. Use state:, states:, adapters:, \
+            or observation: .none when automatic observation is not expected.
+            """
+        )
+        #endif
     }
 
     private func installInterceptors(
@@ -210,6 +261,7 @@ private final class KMPStateFlowObservationHub: @unchecked Sendable {
     private let lock = NSRecursiveLock()
     private var listeners: [ListenerID: Listener] = [:]
     private var activeFlows: [Selector: ActiveFlow] = [:]
+    private var incompatibleSelectors: Set<Selector> = []
 
     init(descriptor: KMPStateFlowRuntimeDescriptor) {
         self.descriptor = descriptor
@@ -261,26 +313,63 @@ private final class KMPStateFlowObservationHub: @unchecked Sendable {
 
             let old = activeFlows.removeValue(forKey: selector)?.observation
             guard !listeners.isEmpty,
-                  let observation = KMPDynamicSKIEObservation(
-                      flow: flow,
-                      iteratorClass: descriptor.iteratorClass,
-                      onValue: { [weak self] in
-                          self?.notifyListeners()
-                      },
-                      onError: { [weak self] error in
-                          self?.report(error)
-                      }
-                  ) else {
+                  !incompatibleSelectors.contains(selector) else {
+                return old
+            }
+            guard let observation = KMPDynamicSKIEObservation(
+                flow: flow,
+                iteratorClass: descriptor.iteratorClass,
+                onValue: { [weak self] in
+                    self?.notifyListeners()
+                },
+                onError: { [weak self] error in
+                    self?.report(error)
+                }
+            ) else {
+                incompatibleSelectors.insert(selector)
+                logIncompatibleIterator(selector)
                 return old
             }
             activeFlows[selector] = ActiveFlow(
                 identity: identity,
                 observation: observation
             )
+            logDiscovery(selector)
             observation.start()
             return old
         }
         oldObservation?.cancel()
+    }
+
+    private func logDiscovery(_ selector: Selector) {
+        #if DEBUG
+        Logger(
+            subsystem: "KMPObservableBridge",
+            category: "AutomaticSKIE"
+        ).debug(
+            """
+            Observing SKIE StateFlow getter \
+            \(NSStringFromSelector(selector), privacy: .public)
+            """
+        )
+        #endif
+    }
+
+    private func logIncompatibleIterator(_ selector: Selector) {
+        #if DEBUG
+        Logger(
+            subsystem: "KMPObservableBridge",
+            category: "AutomaticSKIE"
+        ).warning(
+            """
+            SKIE StateFlow getter \
+            \(NSStringFromSelector(selector), privacy: .public) was found, \
+            but SkieColdFlowIterator does not provide the expected Objective-C \
+            method shapes. Use an explicit state: key path and verify the \
+            Kotlin/SKIE version combination.
+            """
+        )
+        #endif
     }
 
     private func notifyListeners() {
@@ -346,25 +435,31 @@ private final class KMPDynamicSKIEObservation: @unchecked Sendable {
         let cancelSelector = NSSelectorFromString("cancel")
 
         guard
-            let allocMethod = class_getClassMethod(
+            let allocMethod = kmpMethod(
                 iteratorClass,
-                allocSelector
+                selector: allocSelector,
+                kind: .class,
+                expectedArgumentCount: 2
             ),
-            let initializeMethod = class_getInstanceMethod(
+            let initializeMethod = kmpMethod(
                 iteratorClass,
-                initializeSelector
+                selector: initializeSelector,
+                expectedArgumentCount: 3
             ),
-            let hasNextMethod = class_getInstanceMethod(
+            let hasNextMethod = kmpMethod(
                 iteratorClass,
-                hasNextSelector
+                selector: hasNextSelector,
+                expectedArgumentCount: 3
             ),
-            let nextMethod = class_getInstanceMethod(
+            let nextMethod = kmpMethod(
                 iteratorClass,
-                nextSelector
+                selector: nextSelector,
+                expectedArgumentCount: 2
             ),
-            let cancelMethod = class_getInstanceMethod(
+            let cancelMethod = kmpMethod(
                 iteratorClass,
-                cancelSelector
+                selector: cancelSelector,
+                expectedArgumentCount: 2
             )
         else {
             return nil
@@ -463,5 +558,31 @@ private final class KMPDynamicSKIEObservation: @unchecked Sendable {
         }
         return false
     }
+}
+
+enum KMPObjectiveCMethodKind {
+    case instance
+    case `class`
+}
+
+func kmpMethod(
+    _ type: AnyClass,
+    selector: Selector,
+    kind: KMPObjectiveCMethodKind = .instance,
+    expectedArgumentCount: UInt32
+) -> Method? {
+    let method: Method?
+    switch kind {
+    case .instance:
+        method = class_getInstanceMethod(type, selector)
+    case .class:
+        method = class_getClassMethod(type, selector)
+    }
+
+    guard let method,
+          method_getNumberOfArguments(method) == expectedArgumentCount else {
+        return nil
+    }
+    return method
 }
 #endif
