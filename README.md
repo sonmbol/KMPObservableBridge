@@ -5,6 +5,8 @@
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![Kotlin Multiplatform](https://img.shields.io/badge/Kotlin-Multiplatform-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org/docs/multiplatform.html)
 [![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS-lightgrey)](Package.swift)
+[![Release](https://img.shields.io/github/v/release/sonmbol/KMPObservableBridge)](https://github.com/sonmbol/KMPObservableBridge/releases/latest)
+[![CI](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/swift.yml/badge.svg)](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/swift.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 `KMPObservableBridge` lets SwiftUI observe Kotlin Multiplatform ViewModels
@@ -46,6 +48,10 @@ With KMPObservableBridge, SwiftUI owns or observes the real Kotlin ViewModel:
 
 No shadow `@Published` state, duplicated action methods, or screen-specific
 adapter object is required.
+
+**[Install the latest release](https://github.com/sonmbol/KMPObservableBridge/releases/latest) ·
+[Ask an integration question](https://github.com/sonmbol/KMPObservableBridge/discussions/categories/q-a) ·
+[Share your KMP setup](https://github.com/sonmbol/KMPObservableBridge/discussions/9)**
 
 <p align="center">
   <img src="Assets/demo.png" width="300" alt="DailyPulse running KMPObservableBridge in SwiftUI">
@@ -728,6 +734,18 @@ swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 `Examples/DailyPulse` contains a local Swift Package integration. The package
 product includes only `Sources/KMPObservableBridge`; the example application is
 not shipped to consumers.
+
+## Learn and compare
+
+- [Why Kotlin ViewModels do not need Swift adapter ViewModels](Docs/Why-Kotlin-ViewModels-Do-Not-Need-Swift-Adapters.md)
+- [Choosing SKIE or KMP-NativeCoroutines for SwiftUI](Docs/Choosing-SKIE-or-KMP-NativeCoroutines.md)
+- [Observing StateFlow in SwiftUI](Docs/Observing-StateFlow-in-SwiftUI.md)
+
+If you are evaluating the package on an existing application, share one
+sanitized ViewModel in the
+[integration-help discussion](https://github.com/sonmbol/KMPObservableBridge/discussions/7).
+Include the Kotlin, Coroutines, SKIE or KMP-NativeCoroutines, Swift, and Xcode
+versions so the resulting compatibility report can help other teams.
 
 ## Used in production
 
