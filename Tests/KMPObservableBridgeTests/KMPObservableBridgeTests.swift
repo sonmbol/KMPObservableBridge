@@ -298,6 +298,39 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
+    func testStaticStateObjectDefersModelConstructionToSwiftUIStorage() {
+        var constructionCount = 0
+
+        func makeModel() -> Model {
+            constructionCount += 1
+            return Model()
+        }
+
+        _ = KMPStateObject(wrappedValue: makeModel())
+
+        XCTAssertEqual(constructionCount, 0)
+    }
+
+    func testInjectedStaticStateObjectDefersInjectorConstruction() {
+        @MainActor
+        final class Injector {
+            let model = Model()
+        }
+        var constructionCount = 0
+
+        func makeInjector() -> Injector {
+            constructionCount += 1
+            return Injector()
+        }
+
+        _ = KMPStateObject(
+            injector: makeInjector(),
+            viewModel: \.model
+        )
+
+        XCTAssertEqual(constructionCount, 0)
+    }
+
     func testProjectedStoreCreatesBindingForWritableExport() {
         let model = Model()
         let owner = KMPStateObject(wrappedValue: model)
@@ -367,6 +400,36 @@ final class KMPObservableBridgeTests: XCTestCase {
         withExtendedLifetime((firstCancellable, secondCancellable)) {}
     }
 
+    func testStaticHubSupportsReentrantListenerCancellation() async {
+        let model = Model()
+        let plan = KMPObservationPlan<Model>(.publisher(\.subject))
+        var firstChanges = 0
+        var secondChanges = 0
+        var second: KMPObservation?
+        let first = plan.startObservation(
+            on: model,
+            notify: {
+                firstChanges += 1
+                second?.cancel()
+            },
+            reportError: { _ in }
+        )
+        second = plan.startObservation(
+            on: model,
+            notify: { secondChanges += 1 },
+            reportError: { _ in }
+        )
+
+        model.subject.send(1)
+        await settleMainActorTasks()
+        model.subject.send(2)
+        await settleMainActorTasks()
+
+        XCTAssertEqual(firstChanges, 2)
+        XCTAssertLessThanOrEqual(secondChanges, 1)
+        withExtendedLifetime((first, second)) {}
+    }
+
     func testRebindingCancelsOldSourceAndSuppressesStaleEmissions() async {
         let first = Model()
         let second = Model()
@@ -393,6 +456,31 @@ final class KMPObservableBridgeTests: XCTestCase {
         await settleMainActorTasks()
         XCTAssertEqual(receivedChanges, countAfterRebind + 1)
         XCTAssertTrue(bridge.wrappedValue === second)
+        withExtendedLifetime(cancellable) {}
+    }
+
+    func testRebindingUsesCoalescedUpdatePolicy() async {
+        let first = Model()
+        let second = Model()
+        var receivedChanges = 0
+        let bridge = KMPViewModel(
+            first,
+            states: [.publisher(\.subject)],
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        let cancellable = bridge.objectWillChange.sink {
+            receivedChanges += 1
+        }
+
+        bridge.rebind(to: second, states: [.publisher(\.subject)])
+        second.subject.send(1)
+        second.subject.send(2)
+        await settleMainActorTasks()
+
+        XCTAssertEqual(receivedChanges, 1)
         withExtendedLifetime(cancellable) {}
     }
 

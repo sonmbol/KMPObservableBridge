@@ -1,42 +1,5 @@
 import Combine
-import Foundation
 import SwiftUI
-
-#if canImport(Observation)
-import Observation
-
-@available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
-@Observable
-@MainActor
-private final class KMPModernRevision {
-    var value: UInt = 0
-}
-#endif
-
-/// One mutually exclusive observation route selected before a store starts.
-///
-/// Keeping this as a single value prevents generated and explicit adapters
-/// from being enabled together accidentally.
-enum KMPObservationSource<ViewModel: AnyObject> {
-    case none
-    case staticPlan(KMPObservationPlan<ViewModel>)
-    case explicit([KMPState<ViewModel>])
-}
-
-@MainActor
-func kmpStaticObservationSource<ViewModel: KMPStaticallyObservable>(
-    for _: ViewModel.Type
-) -> KMPObservationSource<ViewModel> {
-    .explicit([
-        .custom { model, notify, reportError in
-            ViewModel.kmpStartObservation(
-                on: model,
-                notify: notify,
-                reportError: reportError
-            )
-        },
-    ])
-}
 
 /// Observable storage shared by owning, observed, and environment wrappers.
 ///
@@ -157,7 +120,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         stopObserving()
         wrappedValue = viewModel
         startObserving(source)
-        emitChange()
+        scheduleChange()
     }
 
     private func startObserving(
@@ -241,7 +204,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         #if canImport(Observation)
         if modernObservationEnabled {
             if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
-               let revision = modernRevision as? KMPModernRevision {
+               let revision = modernRevision as? KMPObservationRevision {
                 revision.value &+= 1
                 return
             }
@@ -256,7 +219,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
             return
         }
         if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *) {
-            modernRevision = KMPModernRevision()
+            modernRevision = KMPObservationRevision()
         }
         #endif
     }
@@ -265,7 +228,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         #if canImport(Observation)
         if modernObservationEnabled {
             if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
-               let revision = modernRevision as? KMPModernRevision {
+               let revision = modernRevision as? KMPObservationRevision {
                 _ = revision.value
             }
         }

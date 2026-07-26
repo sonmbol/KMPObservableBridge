@@ -21,10 +21,9 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) where ViewModel: KMPStaticallyObservable {
-        let viewModel = makeViewModel()
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
-                viewModel,
+                makeViewModel(),
                 source: kmpStaticObservationSource(for: ViewModel.self),
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
@@ -42,10 +41,9 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
     ) where ViewModel: KMPStaticallyObservable {
-        let viewModel = makeInjector()[keyPath: keyPath]
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
-                viewModel,
+                makeInjector()[keyPath: keyPath],
                 source: kmpStaticObservationSource(for: ViewModel.self),
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
