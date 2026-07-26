@@ -16,16 +16,14 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         storage
     }
 
-    /// Observes a model using its explicit contract or SKIE discovery.
+    /// Observes a model using its macro-declared observation plan.
     public init(
         wrappedValue viewModel: ViewModel,
-        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
-    ) {
+    ) where ViewModel: KMPStaticallyObservable {
         self.init(
             viewModel,
-            observation: observation,
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -34,17 +32,12 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
     /// Observes an external model without taking ownership.
     public init(
         _ viewModel: ViewModel,
-        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log
-    ) {
-        let source = kmpAutomaticObservationSource(
-            for: viewModel,
-            strategy: observation
-        )
+    ) where ViewModel: KMPStaticallyObservable {
         self.init(
             viewModel,
-            source: source,
+            source: kmpStaticObservationSource(for: ViewModel.self),
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )
@@ -59,6 +52,21 @@ public struct KMPObservedObject<ViewModel: AnyObject>: @preconcurrency DynamicPr
         self.init(
             viewModel,
             state: state,
+            updatePolicy: updatePolicy,
+            failurePolicy: failurePolicy
+        )
+    }
+
+    public init<Sequence: AsyncSequence, Selection: Equatable>(
+        wrappedValue viewModel: ViewModel,
+        state: KeyPath<ViewModel, Sequence>,
+        changes: KMPChanges<Sequence.Element, Selection>,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log
+    ) {
+        self.init(
+            viewModel,
+            adapterArray: [.asyncSequence(state, changes: changes)],
             updatePolicy: updatePolicy,
             failurePolicy: failurePolicy
         )

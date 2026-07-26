@@ -15,6 +15,12 @@ jobs:
         run: swift test
       - name: Strict concurrency
         run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - name: Reject runtime interception
+        run: |
+          if rg -n 'method_setImplementation|class_replaceMethod|class_getInstanceMethod|perform\\(|NSSelectorFromString|objc_msgSend' Sources/KMPObservableBridge; then
+            echo "Objective-C runtime interception API found in production sources"
+            exit 1
+          fi
       - name: Documentation
         run: |
           xcodebuild docbuild \
@@ -55,7 +61,7 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
-      - name: Build generated SKIE framework
+      - name: Build SKIE framework
         working-directory: Examples/DailyPulse
         run: ./gradlew :shared:linkDebugFrameworkIosSimulatorArm64
       - name: Build SwiftUI integration app

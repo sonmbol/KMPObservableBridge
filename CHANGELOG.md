@@ -6,6 +6,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ### Added
 
+- Generated static observation plans with compiler-checked ViewModel and
+  `StateFlow` key paths.
+- A generator executable for Kotlin framework headers.
+- A one-time SwiftPM/Xcode build-tool plugin that compiles generated plans from
+  DerivedData without generated-file references or target membership.
+- One weakly registered shared collection hub per model identity.
+- Whole-state duplicate suppression and optional projection filtering.
 - Arbitrary heterogeneous state key paths using Swift parameter packs.
 - `KMPViewModelStore` projected values and environment injection.
 - Direct and optional flow-backed child ViewModel wrappers.
@@ -14,7 +21,6 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Observation-framework delivery with legacy `ObservableObject` fallback.
 - Structured observation failure policies and system logging.
 - Strict-concurrency, lifecycle, child, performance, and memory tests.
-- Default lazy SKIE StateFlow discovery with an explicit `.none` strategy.
 
 ### Changed
 
@@ -22,17 +28,13 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 - Observation error closures are represented by
   `KMPObservationFailurePolicy`.
 - Coalescing is the default update behavior.
-- The package now ships a single library product with no generator executable.
-- Automatic SKIE compatibility results are cached per model class to avoid
-  repeated Objective-C protocol scans.
-- Debug diagnostics now identify unavailable automatic SKIE runtimes,
-  successfully discovered StateFlow getters, and incompatible iterator method
-  shapes.
-- Dynamic SKIE iterator methods are validated by Objective-C argument count
-  before invocation.
+- Zero-configuration wrappers now require `KMPStaticallyObservable`
+  conformance, making missing generation a compile-time error.
+- The minimum iOS deployment target is now iOS 15.
 
 ### Removed
 
 - Fixed two-, three-, and four-state overloads.
 - Silent observation-error defaults.
-- The obsolete build-time `KMPObservableBridgeGenerator` product and target.
+- Runtime SKIE getter discovery, Objective-C interception, selector lookup, and
+  undocumented iterator ABI invocation.

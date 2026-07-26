@@ -1,21 +1,4 @@
 import Foundation
-
-/// Selects an optional automatic interoperability mechanism.
-public enum KMPAutomaticObservation {
-    /// Disables automatic observation.
-    ///
-    /// The model remains available through the wrapper, but the bridge creates
-    /// no automatic subscriptions. Use this when invalidation is handled by
-    /// another owner or when the model is intentionally read-only.
-    case none
-
-    /// Lazily discovers SKIE StateFlows through their Objective-C getters.
-    ///
-    /// This is an experimental compatibility mode because it relies on
-    /// Objective-C method interception and SKIE's generated iterator ABI.
-    /// Prefer explicit `state:` or `states:` key paths for maximum stability.
-    case automaticSKIE
-}
 import OSLog
 
 /// Controls how frequently state emissions invalidate SwiftUI.

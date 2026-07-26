@@ -1,122 +1,13 @@
 import Combine
 import Foundation
-import SwiftUI
-
-/// The structural function signature exported by KMP-NativeCoroutines as
-/// `NativeFlow`.
-///
-/// Defining the signature locally lets the bridge observe NativeCoroutines
-/// without making it a required package dependency.
-public typealias KMPNativeFlow<Output, Failure: Error, Unit> = (
-    _ onItem: @escaping (Output, @escaping () -> Unit, Unit) -> Unit,
-    _ onComplete: @escaping (Failure?, Unit) -> Unit,
-    _ onCancelled: @escaping (Failure, Unit) -> Unit
-) -> () -> Unit
-
-/// Opt-in automatic observation for a Kotlin model that exposes one canonical
-/// KMP-NativeCoroutines invalidation flow.
-///
-/// The flow's elements are not cached by Swift. They only tell SwiftUI that the
-/// model's Kotlin-owned properties should be read again.
-@MainActor
-public protocol KMPAutomaticallyObservable: AnyObject {
-    func kmpObserveAutomatically(
-        notify: @escaping @Sendable () -> Void,
-        reportError: @escaping @Sendable (Error) -> Void
-    ) -> KMPObservation
-}
-
-@MainActor
-public protocol KMPNativeObservable: KMPAutomaticallyObservable {
-    associatedtype KMPObservationOutput
-    associatedtype KMPObservationFailure: Error
-    associatedtype KMPObservationUnit
-
-    var kmpObservationFlow: KMPNativeFlow<
-        KMPObservationOutput,
-        KMPObservationFailure,
-        KMPObservationUnit
-    > { get }
-}
-
-/// A KMP wrapper that exposes its current value through a `value` property.
-///
-/// Conformance only provides dynamic-member syntax for nested reads. The
-/// bridge never copies, flattens, or owns the Kotlin value.
-@dynamicMemberLookup
-public protocol KMPValueProperty {
-    associatedtype Value
-
-    var value: Value { get }
-}
-
-public extension KMPValueProperty {
-    subscript<Member>(dynamicMember keyPath: KeyPath<Value, Member>) -> Member {
-        value[keyPath: keyPath]
-    }
-}
-
-public extension Text {
-    /// Creates text from a scalar string held by a KMP value property.
-    ///
-    /// This complements dynamic-member lookup, which only applies when the
-    /// emitted value has a nested member such as `state.isLoading`.
-    init<Property>(_ property: Property)
-    where Property: KMPValueProperty, Property.Value == String {
-        self.init(verbatim: property.value)
-    }
-}
-
-/// A main-actor cancellation token for a single KMP observation.
-///
-/// Cancellation is idempotent and is also performed when the token is released.
-@MainActor
-public final class KMPObservation {
-    private var onCancel: (() -> Void)?
-
-    public init(_ onCancel: @escaping () -> Void) {
-        self.onCancel = onCancel
-    }
-
-    public func cancel() {
-        let action = onCancel
-        onCancel = nil
-        action?()
-    }
-
-    deinit {
-        MainActor.assumeIsolated {
-            onCancel?()
-        }
-    }
-
-    public static var empty: KMPObservation {
-        KMPObservation {}
-    }
-
-    /// Combines observations into one idempotent lifecycle handle.
-    public static func group(_ observations: KMPObservation...) -> KMPObservation {
-        KMPObservation {
-            observations.forEach { $0.cancel() }
-        }
-    }
-}
-
-public extension KMPObservation {
-    convenience init(_ cancellable: AnyCancellable) {
-        self.init {
-            cancellable.cancel()
-        }
-    }
-}
 
 /// Describes a state source whose emissions invalidate a SwiftUI view.
 ///
 /// `KMPState` does not store emitted values. Kotlin remains the source of truth.
 @MainActor
 public struct KMPState<ViewModel: AnyObject> {
-    public typealias Notify = @Sendable () -> Void
-    public typealias ReportError = @Sendable (Error) -> Void
+    public typealias Notify = KMPObservationNotify
+    public typealias ReportError = KMPObservationErrorHandler
     typealias Observer = @MainActor (
         ViewModel,
         @escaping Notify,
@@ -157,6 +48,73 @@ public struct KMPState<ViewModel: AnyObject> {
         asyncSequence { $0[keyPath: keyPath] }
     }
 
+    /// Observes every emission without equality suppression.
+    public static func everyEmission<Sequence: AsyncSequence>(
+        _ keyPath: KeyPath<ViewModel, Sequence>
+    ) -> Self {
+        asyncSequence(keyPath)
+    }
+
+    /// Observes a sequence and suppresses consecutive equal elements.
+    ///
+    /// Generated static plans use this source by default. The first replay is
+    /// always delivered so a state change racing initial view evaluation
+    /// cannot be lost.
+    public static func equatable<Sequence: AsyncSequence>(
+        _ keyPath: KeyPath<ViewModel, Sequence>
+    ) -> Self where Sequence.Element: Equatable {
+        asyncSequence(keyPath, changes: { $0 })
+    }
+
+    /// Observes a sequence and invalidates only when a selected value changes.
+    public static func asyncSequence<
+        Sequence: AsyncSequence,
+        Selection: Equatable
+    >(
+        _ keyPath: KeyPath<ViewModel, Sequence>,
+        changes select: @escaping @MainActor (Sequence.Element) -> Selection
+    ) -> Self {
+        Self { viewModel, notify, reportError in
+            let source = viewModel[keyPath: keyPath]
+            let task = Task { @MainActor in
+                var previous: Selection?
+                var hasPrevious = false
+
+                do {
+                    for try await element in source {
+                        try Task.checkCancellation()
+                        let selection = select(element)
+                        guard !hasPrevious || previous != selection else {
+                            continue
+                        }
+                        previous = selection
+                        hasPrevious = true
+                        notify()
+                    }
+                } catch is CancellationError {
+                    // Expected when SwiftUI destroys the identity store.
+                } catch {
+                    reportError(error)
+                }
+            }
+
+            return KMPObservation {
+                task.cancel()
+            }
+        }
+    }
+
+    /// Observes a sequence and invalidates only when its projection changes.
+    public static func asyncSequence<
+        Sequence: AsyncSequence,
+        Selection: Equatable
+    >(
+        _ keyPath: KeyPath<ViewModel, Sequence>,
+        changes: KMPChanges<Sequence.Element, Selection>
+    ) -> Self {
+        asyncSequence(keyPath, changes: changes.select)
+    }
+
     /// Observes a KMP-NativeCoroutines `NativeFlow` directly.
     ///
     /// Items trigger view invalidation, completion errors use the configured
@@ -171,13 +129,17 @@ public struct KMPState<ViewModel: AnyObject> {
             let flow = viewModel[keyPath: keyPath]
             let cancel = flow(
                 { _, next, unit in
-                    notify()
+                    Task { @MainActor in
+                        notify()
+                    }
                     _ = next()
                     return unit
                 },
                 { error, unit in
                     if let error {
-                        reportError(error)
+                        Task { @MainActor in
+                            reportError(error)
+                        }
                     }
                     return unit
                 },
@@ -226,8 +188,9 @@ public struct KMPState<ViewModel: AnyObject> {
 
     /// Observes a callback-style KMP API.
     ///
-    /// `notify` and `reportError` may be called from any thread. The bridge
-    /// marshals delivery to the main actor and suppresses stale observations.
+    /// The supplied callbacks are main-actor isolated. An adapter receiving a
+    /// Kotlin callback on another thread must cross to `MainActor` once before
+    /// invoking them.
     public static func callback(
         _ observe: @escaping @MainActor (
             ViewModel,
@@ -246,11 +209,15 @@ public struct KMPState<ViewModel: AnyObject> {
             let cancellable = publisher(viewModel).sink(
                 receiveCompletion: { completion in
                     if case .failure(let error) = completion {
-                        reportError(error)
+                        Task { @MainActor in
+                            reportError(error)
+                        }
                     }
                 },
                 receiveValue: { _ in
-                    notify()
+                    Task { @MainActor in
+                        notify()
+                    }
                 }
             )
 
@@ -271,13 +238,17 @@ public struct KMPState<ViewModel: AnyObject> {
 }
 
 public extension KMPNativeObservable {
-    @MainActor
-    func kmpObserveAutomatically(
-        notify: @escaping KMPState<Self>.Notify,
-        reportError: @escaping KMPState<Self>.ReportError
+    static var kmpObservationPlan: KMPObservationPlan<Self> {
+        KMPObservationPlan(.automatic())
+    }
+
+    static func kmpStartObservation(
+        on model: Self,
+        notify: @escaping KMPObservationNotify,
+        reportError: @escaping KMPObservationErrorHandler
     ) -> KMPObservation {
-        KMPState<Self>.automatic().startObservation(
-            on: self,
+        kmpObservationPlan.startObservation(
+            on: model,
             notify: notify,
             reportError: reportError
         )

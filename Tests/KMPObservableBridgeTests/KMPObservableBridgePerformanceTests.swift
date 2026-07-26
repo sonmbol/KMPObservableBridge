@@ -4,8 +4,22 @@ import XCTest
 
 @MainActor
 final class KMPObservableBridgePerformanceTests: XCTestCase {
-    private final class Model {
+    private final class Model: KMPStaticallyObservable {
         let state = PassthroughSubject<Int, Never>()
+
+        static var kmpObservationPlan: KMPObservationPlan<Model> {
+            KMPObservationPlan(.publisher(\.state))
+        }
+
+        static func kmpStartObservation(
+            on model: Model,
+            notify: @escaping KMPObservationNotify,
+            reportError: @escaping KMPObservationErrorHandler
+        ) -> KMPObservation {
+            kmpObservationPlan.startObservation(
+                on: model, notify: notify, reportError: reportError
+            )
+        }
     }
 
     func testTenThousandImmediateEmissions() {
@@ -47,10 +61,10 @@ final class KMPObservableBridgePerformanceTests: XCTestCase {
         }
     }
 
-    func testCachedUnavailableAutomaticObservationSetup() {
+    func testStaticObservationSetup() {
         _ = KMPViewModelStore(
             Model(),
-            source: .automaticSKIE,
+            source: .staticPlan(Model.kmpObservationPlan),
             updatePolicy: .coalesced,
             failurePolicy: .ignore,
             ownsModel: false,
@@ -62,7 +76,7 @@ final class KMPObservableBridgePerformanceTests: XCTestCase {
                 autoreleasepool {
                     _ = KMPViewModelStore(
                         Model(),
-                        source: .automaticSKIE,
+                        source: .staticPlan(Model.kmpObservationPlan),
                         updatePolicy: .coalesced,
                         failurePolicy: .ignore,
                         ownsModel: false,

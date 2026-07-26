@@ -132,27 +132,23 @@ private final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
         let activeGeneration = generation
         parentObservation = state.observe(
             parent,
-            { [weak self] in
-                Task { @MainActor [weak self] in
-                    guard
-                        let self,
-                        self.generation == activeGeneration
-                    else {
-                        return
-                    }
-                    self.replaceChild(with: self.currentChild())
+            { @MainActor [weak self] in
+                guard
+                    let self,
+                    self.generation == activeGeneration
+                else {
+                    return
                 }
+                self.replaceChild(with: self.currentChild())
             },
-            { [weak self] error in
-                Task { @MainActor [weak self] in
-                    guard
-                        let self,
-                        self.generation == activeGeneration
-                    else {
-                        return
-                    }
-                    self.failurePolicy.report(error)
+            { @MainActor [weak self] error in
+                guard
+                    let self,
+                    self.generation == activeGeneration
+                else {
+                    return
                 }
+                self.failurePolicy.report(error)
             }
         )
     }

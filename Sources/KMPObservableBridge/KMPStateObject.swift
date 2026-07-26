@@ -14,26 +14,18 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         storage
     }
 
-    /// Creates and owns a model using automatic observation by default.
-    ///
-    /// Explicit automatic contracts such as `KMPNativeObservable` are checked
-    /// first. Other models use SKIE discovery unless `.none` is selected.
+    /// Creates and owns a model using its macro-declared observation plan.
     public init(
         wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
-        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
-    ) {
+    ) where ViewModel: KMPStaticallyObservable {
         let viewModel = makeViewModel()
-        let source = kmpAutomaticObservationSource(
-            for: viewModel,
-            strategy: observation
-        )
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 viewModel,
-                source: source,
+                source: kmpStaticObservationSource(for: ViewModel.self),
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -42,24 +34,19 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
         )
     }
 
-    /// Resolves and owns an injected model using automatic observation.
+    /// Resolves and owns an injected model using its macro-declared plan.
     public init<Injector>(
         injector makeInjector: @autoclosure @escaping () -> Injector,
         viewModel keyPath: KeyPath<Injector, ViewModel>,
-        observation: KMPAutomaticObservation = .automaticSKIE,
         updatePolicy: KMPUpdatePolicy = .coalesced,
         failurePolicy: KMPObservationFailurePolicy = .log,
         dispose: (@MainActor (ViewModel) -> Void)? = nil
-    ) {
+    ) where ViewModel: KMPStaticallyObservable {
         let viewModel = makeInjector()[keyPath: keyPath]
-        let source = kmpAutomaticObservationSource(
-            for: viewModel,
-            strategy: observation
-        )
         _storage = StateObject(
             wrappedValue: KMPViewModelStore(
                 viewModel,
-                source: source,
+                source: kmpStaticObservationSource(for: ViewModel.self),
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,
@@ -80,6 +67,27 @@ public struct KMPStateObject<ViewModel: AnyObject>: DynamicProperty {
             wrappedValue: KMPViewModelStore(
                 makeViewModel(),
                 states: [.asyncSequence(state)],
+                updatePolicy: updatePolicy,
+                failurePolicy: failurePolicy,
+                ownsModel: true,
+                disposer: dispose
+            )
+        )
+    }
+
+    /// Observes a state stream while invalidating only for projection changes.
+    public init<Sequence: AsyncSequence, Selection: Equatable>(
+        wrappedValue makeViewModel: @autoclosure @escaping () -> ViewModel,
+        state: KeyPath<ViewModel, Sequence>,
+        changes: KMPChanges<Sequence.Element, Selection>,
+        updatePolicy: KMPUpdatePolicy = .coalesced,
+        failurePolicy: KMPObservationFailurePolicy = .log,
+        dispose: (@MainActor (ViewModel) -> Void)? = nil
+    ) {
+        _storage = StateObject(
+            wrappedValue: KMPViewModelStore(
+                makeViewModel(),
+                states: [.asyncSequence(state, changes: changes)],
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy,
                 ownsModel: true,

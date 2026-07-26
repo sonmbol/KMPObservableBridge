@@ -1,40 +1,25 @@
 # ``KMPObservableBridge``
 
-Connect arbitrary Kotlin Multiplatform ViewModels to native SwiftUI ownership
-and observation without requiring a Kotlin runtime dependency.
+Connect Kotlin Multiplatform ViewModels directly to SwiftUI with macro-expanded,
+compile-time-checked observation plans.
 
 ## Overview
 
-Use ``KMPStateObject`` when a view owns a model, ``KMPObservedObject`` for an
-external model, and ``KMPEnvironmentObject`` for a projected store injected by
-an ancestor.
+Use ``KMPStateObject`` when a view owns a model and ``KMPObservedObject`` for
+an externally owned model:
 
 ```swift
 @KMPStateObject private var profile = ProfileViewModel()
 ```
 
-Kotlin remains the source of truth. The bridge observes emissions but never
-copies state.
+The zero-configuration initializer requires a macro-expanded
+``KMPStaticallyObservable`` conformance. ``KMPObservationPlan`` entries use
+typed key paths and collect exported SKIE `StateFlow` sequences.
+Explicit `state:`, `states:`, NativeFlow, callback, Combine, and custom
+``KMPState`` adapters remain available without macros.
 
-For a model that exposes one canonical KMP-NativeCoroutines flow, opt into
-automatic observation once:
-
-```swift
-extension ProfileViewModel: @retroactive KMPNativeObservable {}
-
-@KMPStateObject
-private var profile = ProfileViewModel()
-```
-
-The explicit `state:` form remains the universal option. The automatic form
-removes the key path without requiring a framework-owned Kotlin superclass.
-
-For SKIE frameworks, `.automaticSKIE` is the default and lets wrappers lazily
-discover public StateFlows when their exported getters are naturally read.
-This requires no generated file or build script, but uses Objective-C method
-interception and SKIE's generated iterator ABI. The explicit `state:` and
-`states:` initializers remain available for maximum stability and selecting a
-specific subset; `.none` disables automatic observation.
+Hubs are shared per model identity, discard equal consecutive state, and
+cancel collection after the last SwiftUI identity releases its lease.
 
 ## Topics
 
@@ -51,14 +36,15 @@ specific subset; `.none` disables automatic observation.
 - ``KMPChildObject``
 - ``KMPOptionalChildObject``
 
-### Observation
+### Static observation
 
+- ``KMPStaticallyObservable``
+- ``KMPObservationPlan``
+- ``KMPChanges``
 - ``KMPState``
 - ``KMPObservation``
 - ``KMPUpdatePolicy``
 - ``KMPObservationFailurePolicy``
-- ``KMPAutomaticObservation``
 - ``KMPNativeObservable``
-- ``KMPAutomaticallyObservable``
 - ``KMPNativeFlow``
 - ``KMPValueProperty``
