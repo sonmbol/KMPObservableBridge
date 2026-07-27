@@ -11,10 +11,16 @@
 		058557D9273AAEEB004C7B11 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 058557D8273AAEEB004C7B11 /* Preview Assets.xcassets */; };
 		2152FB042600AC8F00CF470E /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2152FB032600AC8F00CF470E /* iOSApp.swift */; };
 		7555FF83242A565900829871 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7555FF82242A565900829871 /* ContentView.swift */; };
-		94A532323011F47B0027F770 /* KMPObservableBridge in Frameworks */ = {isa = PBXBuildFile; productRef = 94A532313011F47B0027F770 /* KMPObservableBridge */; };
-		94A532343011F92D0027F770 /* BridgeExampleCombineAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */; };
-		94A532363011FA2D0027F770 /* KMPObservableBridgeSKIE.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */; };
-		94A532383011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */; };
+		94278274301641DF0039B990 /* NativeCoroutinesExample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9427826B301641DF0039B990 /* NativeCoroutinesExample.swift */; };
+		94278275301641DF0039B990 /* ExampleStyles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94278271301641DF0039B990 /* ExampleStyles.swift */; };
+		94278276301641DF0039B990 /* BridgeCallbackPublisher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94278270301641DF0039B990 /* BridgeCallbackPublisher.swift */; };
+		94278277301641DF0039B990 /* OwnershipExamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9427826C301641DF0039B990 /* OwnershipExamples.swift */; };
+		94278278301641DF0039B990 /* ArticleSKIEExample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94278269301641DF0039B990 /* ArticleSKIEExample.swift */; };
+		94278279301641DF0039B990 /* KMPInterop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94278272301641DF0039B990 /* KMPInterop.swift */; };
+		9427827A301641DF0039B990 /* CallbackExamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9427826A301641DF0039B990 /* CallbackExamples.swift */; };
+		9427827D301641DF0039B990 /* SKIEStateFlowInterop.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9427827C301641DF0039B990 /* SKIEStateFlowInterop.swift */; };
+		94A532323011F47B0027F770 /* KMPObservableBridgeSKIE in Frameworks */ = {isa = PBXBuildFile; productRef = 94A532313011F47B0027F770 /* KMPObservableBridgeSKIE */; };
+		94A532353011F47B0027F770 /* KMPObservableBridgeNative in Frameworks */ = {isa = PBXBuildFile; productRef = 94A532343011F47B0027F770 /* KMPObservableBridgeNative */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -37,9 +43,14 @@
 		7555FF7B242A565900829871 /* iosApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		7555FF82242A565900829871 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7555FF8C242A565B00829871 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeExampleCombineAdapter.swift; sourceTree = "<group>"; };
-		94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridgeSKIE.swift; sourceTree = "<group>"; };
-		94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPObservableBridgeNativeCoroutines.swift; sourceTree = "<group>"; };
+		94278269301641DF0039B990 /* ArticleSKIEExample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleSKIEExample.swift; sourceTree = "<group>"; };
+		9427826A301641DF0039B990 /* CallbackExamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CallbackExamples.swift; sourceTree = "<group>"; };
+		9427826B301641DF0039B990 /* NativeCoroutinesExample.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeCoroutinesExample.swift; sourceTree = "<group>"; };
+		9427826C301641DF0039B990 /* OwnershipExamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OwnershipExamples.swift; sourceTree = "<group>"; };
+		94278270301641DF0039B990 /* BridgeCallbackPublisher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeCallbackPublisher.swift; sourceTree = "<group>"; };
+		94278271301641DF0039B990 /* ExampleStyles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExampleStyles.swift; sourceTree = "<group>"; };
+		94278272301641DF0039B990 /* KMPInterop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KMPInterop.swift; sourceTree = "<group>"; };
+		9427827C301641DF0039B990 /* SKIEStateFlowInterop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SKIEStateFlowInterop.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -47,7 +58,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				94A532323011F47B0027F770 /* KMPObservableBridge in Frameworks */,
+				94A532323011F47B0027F770 /* KMPObservableBridgeSKIE in Frameworks */,
+				94A532353011F47B0027F770 /* KMPObservableBridgeNative in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -83,10 +95,9 @@
 			isa = PBXGroup;
 			children = (
 				058557BA273AAA24004C7B11 /* Assets.xcassets */,
-				94A532333011F92D0027F770 /* BridgeExampleCombineAdapter.swift */,
-				94A532353011FA2D0027F770 /* KMPObservableBridgeSKIE.swift */,
-				94A532373011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift */,
 				7555FF82242A565900829871 /* ContentView.swift */,
+				9427826D301641DF0039B990 /* Examples */,
+				94278273301641DF0039B990 /* Support */,
 				7555FF8C242A565B00829871 /* Info.plist */,
 				2152FB032600AC8F00CF470E /* iOSApp.swift */,
 				058557D7273AAEEB004C7B11 /* Preview Content */,
@@ -99,6 +110,28 @@
 			children = (
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		9427826D301641DF0039B990 /* Examples */ = {
+			isa = PBXGroup;
+			children = (
+				94278269301641DF0039B990 /* ArticleSKIEExample.swift */,
+				9427826A301641DF0039B990 /* CallbackExamples.swift */,
+				9427826B301641DF0039B990 /* NativeCoroutinesExample.swift */,
+				9427826C301641DF0039B990 /* OwnershipExamples.swift */,
+			);
+			path = Examples;
+			sourceTree = "<group>";
+		};
+		94278273301641DF0039B990 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				94278270301641DF0039B990 /* BridgeCallbackPublisher.swift */,
+				94278271301641DF0039B990 /* ExampleStyles.swift */,
+				94278272301641DF0039B990 /* KMPInterop.swift */,
+				9427827C301641DF0039B990 /* SKIEStateFlowInterop.swift */,
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -120,7 +153,8 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
-				94A532313011F47B0027F770 /* KMPObservableBridge */,
+				94A532313011F47B0027F770 /* KMPObservableBridgeSKIE */,
+				94A532343011F47B0027F770 /* KMPObservableBridgeNative */,
 			);
 			productName = iosApp;
 			productReference = 7555FF7B242A565900829871 /* iosApp.app */;
@@ -191,7 +225,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "export JAVA_HOME=\"$(/usr/libexec/java_home -v 17)\"\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon\n";
+			shellScript = "set -e\nexport JAVA_HOME=\"$(/usr/libexec/java_home -v 17)\"\ncd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode --no-daemon\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -201,10 +235,15 @@
 			buildActionMask = 2147483647;
 			files = (
 				2152FB042600AC8F00CF470E /* iOSApp.swift in Sources */,
-				94A532343011F92D0027F770 /* BridgeExampleCombineAdapter.swift in Sources */,
-				94A532363011FA2D0027F770 /* KMPObservableBridgeSKIE.swift in Sources */,
-				94A532383011FA2D0027F770 /* KMPObservableBridgeNativeCoroutines.swift in Sources */,
 				7555FF83242A565900829871 /* ContentView.swift in Sources */,
+				94278274301641DF0039B990 /* NativeCoroutinesExample.swift in Sources */,
+				94278275301641DF0039B990 /* ExampleStyles.swift in Sources */,
+				94278276301641DF0039B990 /* BridgeCallbackPublisher.swift in Sources */,
+				94278277301641DF0039B990 /* OwnershipExamples.swift in Sources */,
+				94278278301641DF0039B990 /* ArticleSKIEExample.swift in Sources */,
+				94278279301641DF0039B990 /* KMPInterop.swift in Sources */,
+				9427827A301641DF0039B990 /* CallbackExamples.swift in Sources */,
+				9427827D301641DF0039B990 /* SKIEStateFlowInterop.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -339,6 +378,7 @@
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				INFOPLIST_FILE = iosApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -367,6 +407,7 @@
 					"$(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)",
 				);
 				INFOPLIST_FILE = iosApp/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -414,10 +455,15 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		94A532313011F47B0027F770 /* KMPObservableBridge */ = {
+		94A532313011F47B0027F770 /* KMPObservableBridgeSKIE */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 94A532333011F47B0027F770 /* XCLocalSwiftPackageReference "../../.." */;
-			productName = KMPObservableBridge;
+			productName = KMPObservableBridgeSKIE;
+		};
+		94A532343011F47B0027F770 /* KMPObservableBridgeNative */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 94A532333011F47B0027F770 /* XCLocalSwiftPackageReference "../../.." */;
+			productName = KMPObservableBridgeNative;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

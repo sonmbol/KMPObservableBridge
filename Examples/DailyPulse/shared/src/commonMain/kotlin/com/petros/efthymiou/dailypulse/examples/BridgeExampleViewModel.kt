@@ -16,6 +16,14 @@ class BridgeExampleViewModel: BaseViewModel() {
     private val _messageState = MutableStateFlow("Ready")
     val messageState: StateFlow<String> get() = _messageState.asStateFlow()
 
+    private val _searchTextState = MutableStateFlow("")
+    val searchTextState: StateFlow<String> get() = _searchTextState.asStateFlow()
+    var searchText: String
+        get() = _searchTextState.value
+        set(value) {
+            _searchTextState.value = value
+        }
+
     @NativeCoroutinesState
     val nativeMessageState: StateFlow<String> = _messageState.asStateFlow()
 

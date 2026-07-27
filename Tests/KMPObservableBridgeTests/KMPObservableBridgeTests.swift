@@ -3,24 +3,25 @@ import SwiftUI
 import XCTest
 @testable import KMPObservableBridge
 
-#if canImport(ObjectiveC)
-private final class ObjectiveCMethodFixture: NSObject {
-    @objc dynamic func objectValue() -> AnyObject? {
-        nil
-    }
-
-    @objc dynamic func transformedValue(
-        for input: AnyObject
-    ) -> AnyObject? {
-        input
-    }
-}
-#endif
-
 @MainActor
 final class KMPObservableBridgeTests: XCTestCase {
-    private final class Model {
+    private final class Model: KMPStaticallyObservable {
         let subject = PassthroughSubject<Int, TestError>()
+        var title = "Initial"
+
+        static var kmpObservationPlan: KMPObservationPlan<Model> {
+            KMPObservationPlan(.publisher(\.subject))
+        }
+
+        static func kmpStartObservation(
+            on model: Model,
+            notify: @escaping KMPObservationNotify,
+            reportError: @escaping KMPObservationErrorHandler
+        ) -> KMPObservation {
+            kmpObservationPlan.startObservation(
+                on: model, notify: notify, reportError: reportError
+            )
+        }
     }
 
     private final class StreamModel: @unchecked Sendable {
@@ -115,6 +116,10 @@ final class KMPObservableBridgeTests: XCTestCase {
             state
         }
 
+        static var kmpObservationPlan: KMPObservationPlan<NativeFlowModel> {
+            KMPObservationPlan(.nativeFlow(\.kmpObservationFlow))
+        }
+
         func emit(_ value: Int) {
             onItem?(value, {}, ())
         }
@@ -124,20 +129,66 @@ final class KMPObservableBridgeTests: XCTestCase {
         }
     }
 
-    /// Represents an application-defined automatic-observation conformance.
-    private final class GeneratedStyleModel: KMPAutomaticallyObservable {
+    /// Represents a macro-expanded static-observation conformance.
+    private final class MacroStyleModel: KMPStaticallyObservable {
         let state = PassthroughSubject<Int, Never>()
 
-        func kmpObserveAutomatically(
-            notify: @escaping KMPState<GeneratedStyleModel>.Notify,
-            reportError: @escaping KMPState<GeneratedStyleModel>.ReportError
+        static var kmpObservationPlan: KMPObservationPlan<MacroStyleModel> {
+            KMPObservationPlan(.publisher(\.state))
+        }
+
+        static func kmpStartObservation(
+            on model: MacroStyleModel,
+            notify: @escaping KMPObservationNotify,
+            reportError: @escaping KMPObservationErrorHandler
         ) -> KMPObservation {
-            KMPState<GeneratedStyleModel>.publisher(\.state)
-                .startObservation(
-                    on: self,
-                    notify: notify,
-                    reportError: reportError
-                )
+            kmpObservationPlan.startObservation(
+                on: model, notify: notify, reportError: reportError
+            )
+        }
+    }
+
+    private final class CountingSequence: AsyncSequence, @unchecked Sendable {
+        typealias Element = Int
+        private let stream: AsyncStream<Int>
+        private let continuation: AsyncStream<Int>.Continuation
+        private(set) var iteratorCount = 0
+        private(set) var cancellationCount = 0
+
+        init() {
+            var captured: AsyncStream<Int>.Continuation?
+            stream = AsyncStream { captured = $0 }
+            continuation = captured!
+            continuation.onTermination = { [weak self] _ in
+                Task { @MainActor in self?.cancellationCount += 1 }
+            }
+        }
+
+        func makeAsyncIterator() -> AsyncStream<Int>.Iterator {
+            iteratorCount += 1
+            return stream.makeAsyncIterator()
+        }
+
+        func emit(_ value: Int) {
+            continuation.yield(value)
+        }
+    }
+
+    private final class SharedModel: KMPStaticallyObservable {
+        let state = CountingSequence()
+
+        static var kmpObservationPlan: KMPObservationPlan<SharedModel> {
+            KMPObservationPlan(.equatable(\.state))
+        }
+
+        static func kmpStartObservation(
+            on model: SharedModel,
+            notify: @escaping KMPObservationNotify,
+            reportError: @escaping KMPObservationErrorHandler
+        ) -> KMPObservation {
+            kmpObservationPlan.startObservation(
+                on: model, notify: notify, reportError: reportError
+            )
         }
     }
 
@@ -152,34 +203,6 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         XCTAssertEqual(cancellationCount, 1)
     }
-
-    #if canImport(ObjectiveC)
-    func testObjectiveCMethodValidationChecksArgumentCount() {
-        XCTAssertNotNil(
-            kmpMethod(
-                ObjectiveCMethodFixture.self,
-                selector: #selector(ObjectiveCMethodFixture.objectValue),
-                expectedArgumentCount: 2
-            )
-        )
-        XCTAssertNil(
-            kmpMethod(
-                ObjectiveCMethodFixture.self,
-                selector: #selector(ObjectiveCMethodFixture.objectValue),
-                expectedArgumentCount: 3
-            )
-        )
-        XCTAssertNotNil(
-            kmpMethod(
-                ObjectiveCMethodFixture.self,
-                selector: #selector(
-                    ObjectiveCMethodFixture.transformedValue(for:)
-                ),
-                expectedArgumentCount: 3
-            )
-        )
-    }
-    #endif
 
     func testObservationCancelsWhenReleased() {
         var cancellationCount = 0
@@ -197,7 +220,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let model = Model()
         var receivedChanges = 0
         var receivedError: TestError?
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.publisher(\.subject)],
             updatePolicy: .immediate,
@@ -252,18 +275,9 @@ final class KMPObservableBridgeTests: XCTestCase {
         withExtendedLifetime(cancellable) {}
     }
 
-    func testAutomaticNativeObservableWrappersUseNativeFlowNotSKIE() {
+    func testNativeObservableStaticPlanSupportsBothWrappers() {
         let ownedModel = NativeFlowModel()
         let observedModel = NativeFlowModel()
-        guard case .explicit(let routedStates) =
-            kmpAutomaticObservationSource(
-                for: ownedModel,
-                strategy: .automaticSKIE
-            )
-        else {
-            return XCTFail("Native observable was not routed explicitly")
-        }
-        XCTAssertEqual(routedStates.count, 1)
 
         let owned = KMPStateObject(wrappedValue: ownedModel)
         let observed = KMPObservedObject(observedModel)
@@ -274,23 +288,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observedModel.isObserved)
     }
 
-    func testExplicitAutomaticSKIEStrategy() {
-        let ownedModel = Model()
-        let observedModel = Model()
-        let owned = KMPStateObject(
-            wrappedValue: ownedModel,
-            observation: .automaticSKIE
-        )
-        let observed = KMPObservedObject(
-            observedModel,
-            observation: .automaticSKIE
-        )
-
-        XCTAssertTrue(owned.wrappedValue === ownedModel)
-        XCTAssertTrue(observed.wrappedValue === observedModel)
-    }
-
-    func testAutomaticSKIEIsTheDefaultObservationStrategy() {
+    func testStaticPlanIsTheDefaultObservationStrategy() {
         let ownedModel = Model()
         let observedModel = Model()
         let owned = KMPStateObject(wrappedValue: ownedModel)
@@ -300,32 +298,53 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
-    func testNoneAutomaticObservationExposesModelsWithoutSubscribing() {
-        let ownedModel = Model()
-        let observedModel = Model()
-        let nativeModel = NativeFlowModel()
-        let owned = KMPStateObject(
-            wrappedValue: ownedModel,
-            observation: .none
-        )
-        let observed = KMPObservedObject(
-            observedModel,
-            observation: .none
-        )
-        let disabledNative = KMPStateObject(
-            wrappedValue: nativeModel,
-            observation: .none
-        )
+    func testStaticStateObjectDefersModelConstructionToSwiftUIStorage() {
+        var constructionCount = 0
 
-        XCTAssertTrue(owned.wrappedValue === ownedModel)
-        XCTAssertTrue(observed.wrappedValue === observedModel)
-        XCTAssertTrue(disabledNative.wrappedValue === nativeModel)
-        XCTAssertFalse(nativeModel.isObserved)
+        func makeModel() -> Model {
+            constructionCount += 1
+            return Model()
+        }
+
+        _ = KMPStateObject(wrappedValue: makeModel())
+
+        XCTAssertEqual(constructionCount, 0)
     }
 
-    func testGeneratedAutomaticConformanceSupportsBothWrappers() {
-        let ownedModel = GeneratedStyleModel()
-        let observedModel = GeneratedStyleModel()
+    func testInjectedStaticStateObjectDefersInjectorConstruction() {
+        @MainActor
+        final class Injector {
+            let model = Model()
+        }
+        var constructionCount = 0
+
+        func makeInjector() -> Injector {
+            constructionCount += 1
+            return Injector()
+        }
+
+        _ = KMPStateObject(
+            injector: makeInjector(),
+            viewModel: \.model
+        )
+
+        XCTAssertEqual(constructionCount, 0)
+    }
+
+    func testProjectedStoreCreatesBindingForWritableExport() {
+        let model = Model()
+        let owner = KMPStateObject(wrappedValue: model)
+        let binding: Binding<String> = owner.projectedValue.title
+
+        XCTAssertEqual(binding.wrappedValue, "Initial")
+        binding.wrappedValue = "Updated"
+        XCTAssertEqual(model.title, "Updated")
+        XCTAssertTrue(owner.projectedValue.rawModel === model)
+    }
+
+    func testMacroStyleConformanceSupportsBothWrappers() {
+        let ownedModel = MacroStyleModel()
+        let observedModel = MacroStyleModel()
         let owned = KMPStateObject(
             wrappedValue: ownedModel,
             updatePolicy: .immediate
@@ -339,11 +358,83 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
+    func testStaticHubSharesCollectionAndSuppressesDuplicates() async {
+        let model = SharedModel()
+        var firstChanges = 0
+        var secondChanges = 0
+        var first: KMPViewModelStore<SharedModel>? = KMPViewModelStore(
+            model,
+            source: .staticPlan(SharedModel.kmpObservationPlan),
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        var second: KMPViewModelStore<SharedModel>? = KMPViewModelStore(
+            model,
+            source: .staticPlan(SharedModel.kmpObservationPlan),
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        let firstCancellable = first?.objectWillChange.sink { firstChanges += 1 }
+        let secondCancellable = second?.objectWillChange.sink { secondChanges += 1 }
+
+        await settleMainActorTasks()
+        XCTAssertEqual(model.state.iteratorCount, 1)
+        model.state.emit(1)
+        model.state.emit(1)
+        model.state.emit(2)
+        for _ in 0..<20 where firstChanges < 2 || secondChanges < 2 {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertEqual(firstChanges, 2)
+        XCTAssertEqual(secondChanges, 2)
+
+        first = nil
+        XCTAssertEqual(model.state.cancellationCount, 0)
+        second = nil
+        await settleMainActorTasks()
+        XCTAssertEqual(model.state.cancellationCount, 1)
+        withExtendedLifetime((firstCancellable, secondCancellable)) {}
+    }
+
+    func testStaticHubSupportsReentrantListenerCancellation() async {
+        let model = Model()
+        let plan = KMPObservationPlan<Model>(.publisher(\.subject))
+        var firstChanges = 0
+        var secondChanges = 0
+        var second: KMPObservation?
+        let first = plan.startObservation(
+            on: model,
+            notify: {
+                firstChanges += 1
+                second?.cancel()
+            },
+            reportError: { _ in }
+        )
+        second = plan.startObservation(
+            on: model,
+            notify: { secondChanges += 1 },
+            reportError: { _ in }
+        )
+
+        model.subject.send(1)
+        await settleMainActorTasks()
+        model.subject.send(2)
+        await settleMainActorTasks()
+
+        XCTAssertEqual(firstChanges, 2)
+        XCTAssertLessThanOrEqual(secondChanges, 1)
+        withExtendedLifetime((first, second)) {}
+    }
+
     func testRebindingCancelsOldSourceAndSuppressesStaleEmissions() async {
         let first = Model()
         let second = Model()
         var receivedChanges = 0
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             first,
             states: [.publisher(\.subject)],
             updatePolicy: .immediate,
@@ -368,11 +459,36 @@ final class KMPObservableBridgeTests: XCTestCase {
         withExtendedLifetime(cancellable) {}
     }
 
+    func testRebindingUsesCoalescedUpdatePolicy() async {
+        let first = Model()
+        let second = Model()
+        var receivedChanges = 0
+        let bridge = KMPViewModelStore(
+            first,
+            states: [.publisher(\.subject)],
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        let cancellable = bridge.objectWillChange.sink {
+            receivedChanges += 1
+        }
+
+        bridge.rebind(to: second, states: [.publisher(\.subject)])
+        second.subject.send(1)
+        second.subject.send(2)
+        await settleMainActorTasks()
+
+        XCTAssertEqual(receivedChanges, 1)
+        withExtendedLifetime(cancellable) {}
+    }
+
     func testOwnedModelDisposesExactlyOnceAfterBridgeRelease() {
         let model = Model()
         weak var weakModel = model
         var disposalCount = 0
-        var bridge: KMPViewModel<Model>? = KMPViewModel(
+        var bridge: KMPViewModelStore<Model>? = KMPViewModelStore(
             model,
             states: [],
             updatePolicy: .immediate,
@@ -394,11 +510,11 @@ final class KMPObservableBridgeTests: XCTestCase {
 
     func testBridgeAndModelDeallocateWithoutRetainCycle() {
         weak var weakModel: Model?
-        weak var weakBridge: KMPViewModel<Model>?
+        weak var weakBridge: KMPViewModelStore<Model>?
 
         do {
             let model = Model()
-            let bridge = KMPViewModel(
+            let bridge = KMPViewModelStore(
                 model,
                 states: [.publisher(\.subject)],
                 updatePolicy: .immediate,
@@ -421,7 +537,7 @@ final class KMPObservableBridgeTests: XCTestCase {
             continuation.yield(1)
             continuation.finish()
         }
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.asyncSequence { _ in sequence }],
             updatePolicy: .immediate,
@@ -443,7 +559,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let sequence = AsyncThrowingStream<Int, Error> { continuation in
             continuation.finish(throwing: TestError.failed)
         }
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.asyncSequence { _ in sequence }],
             updatePolicy: .immediate,
@@ -471,7 +587,7 @@ final class KMPObservableBridgeTests: XCTestCase {
                 }
             }
         }
-        var bridge: KMPViewModel<Model>? = KMPViewModel(
+        var bridge: KMPViewModelStore<Model>? = KMPViewModelStore(
             model,
             states: [.asyncSequence { _ in sequence }],
             updatePolicy: .immediate,
@@ -492,11 +608,13 @@ final class KMPObservableBridgeTests: XCTestCase {
         let change = expectation(description: "main actor invalidation")
         let state = KMPState<Model>.callback { _, notify, _ in
             DispatchQueue.global().async {
-                notify()
+                Task { @MainActor in
+                    notify()
+                }
             }
             return .empty
         }
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [state],
             updatePolicy: .immediate,
@@ -516,7 +634,7 @@ final class KMPObservableBridgeTests: XCTestCase {
     func testHighFrequencyPublisherDoesNotDropInvalidations() async {
         let model = Model()
         var receivedChanges = 0
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.publisher(\.subject)],
             updatePolicy: .immediate,
@@ -553,9 +671,21 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
-    func testTextAcceptsStringValuePropertyWithoutExplicitValueRead() {
-        let message = ValueStream("Ready")
-        _ = Text(message)
+    func testProjectedStoreReturnsNativeContainerValue() {
+        let child = StreamModel()
+        let model = FlowParentModel(child: child)
+        let store = KMPViewModelStore(
+            model,
+            states: [],
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+
+        let projectedChild: StreamModel? = store.childState
+
+        XCTAssertTrue(projectedChild === child)
     }
 
     func testHeterogeneousStateKeyPathConvenience() {
@@ -688,6 +818,35 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         XCTAssertNil(wrapper.wrappedValue)
         XCTAssertNil(wrapper.projectedValue)
+    }
+
+    func testOptionalFlowChildRebindsWhenParentIdentityChanges() async {
+        let firstChild = StreamModel()
+        let secondChild = StreamModel()
+        var firstParent: FlowParentModel? = FlowParentModel(child: firstChild)
+        let secondParent = FlowParentModel(child: secondChild)
+        weak var weakFirstParent = firstParent
+        let store = KMPOptionalChildStore(
+            parent: firstParent!,
+            parentState: .asyncSequence(\.childState),
+            currentChild: { $0.childState.value },
+            childStates: [.asyncSequence(\.state)],
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore
+        )
+
+        XCTAssertTrue(store.child === firstChild)
+
+        store.rebind(
+            to: secondParent,
+            parentState: .asyncSequence(\.childState),
+            currentChild: { $0.childState.value }
+        )
+        firstParent = nil
+        await settleMainActorTasks()
+
+        XCTAssertTrue(store.child === secondChild)
+        XCTAssertNil(weakFirstParent)
     }
 
     func testProjectedStoreCanBeInjectedWithoutCreatingAnotherStore() {

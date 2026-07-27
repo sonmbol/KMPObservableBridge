@@ -1,54 +1,11 @@
 import Combine
-import Foundation
-
-#if canImport(Observation)
-import Observation
-
-@available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
-@Observable
-@MainActor
-private final class KMPModernRevision {
-    var value: UInt = 0
-}
-#endif
-
-/// One mutually exclusive observation route selected before a store starts.
-///
-/// Keeping this as a single value prevents explicit adapters and runtime SKIE
-/// discovery from being enabled together accidentally.
-enum KMPObservationSource<ViewModel: AnyObject> {
-    case none
-    case automaticSKIE
-    case explicit([KMPState<ViewModel>])
-}
-
-@MainActor
-func kmpAutomaticObservationSource<ViewModel: AnyObject>(
-    for viewModel: ViewModel,
-    strategy: KMPAutomaticObservation
-) -> KMPObservationSource<ViewModel> {
-    if case .none = strategy {
-        return .none
-    }
-
-    if let automaticModel = viewModel as? any KMPAutomaticallyObservable {
-        return .explicit([
-            .custom { _, notify, reportError in
-                automaticModel.kmpObserveAutomatically(
-                    notify: notify,
-                    reportError: reportError
-                )
-            },
-        ])
-    }
-
-    return .automaticSKIE
-}
+import SwiftUI
 
 /// Observable storage shared by owning, observed, and environment wrappers.
 ///
 /// The store is exposed as a projected value (`$viewModel`) so observation can
 /// be propagated through SwiftUI's environment without creating subscriptions.
+@dynamicMemberLookup
 @MainActor
 public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency ObservableObject {
     typealias Disposer = @MainActor (ViewModel) -> Void
@@ -121,6 +78,43 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         return wrappedValue
     }
 
+    /// The original Kotlin object.
+    ///
+    /// This escape hatch is useful when a generated interop API must be used
+    /// directly instead of through the bridge's projected bindings.
+    public var rawModel: ViewModel {
+        wrappedValue
+    }
+
+    /// Reads the current value of a KMP state container.
+    ///
+    /// The projected store deliberately performs the container-to-value
+    /// conversion so SwiftUI APIs receive native `String`, `Bool`, numeric, or
+    /// domain values without exposing the interop container's `.value`.
+    public subscript<Property>(
+        dynamicMember keyPath: KeyPath<ViewModel, Property>
+    ) -> Property.Value where Property: KMPValueProperty {
+        trackModernAccess()
+        return wrappedValue[keyPath: keyPath].value
+    }
+
+    /// Creates a native SwiftUI binding for a genuinely writable export.
+    ///
+    /// Read-only StateFlows don't have a `WritableKeyPath`, so the compiler
+    /// correctly refuses to synthesize a binding for immutable Kotlin state.
+    public subscript<Value>(
+        dynamicMember keyPath: WritableKeyPath<ViewModel, Value>
+    ) -> Binding<Value> {
+        Binding(
+            get: { [self] in
+                wrappedValue[keyPath: keyPath]
+            },
+            set: { [self] value in
+                wrappedValue[keyPath: keyPath] = value
+            }
+        )
+    }
+
     /// Rebinds an externally owned model using deterministic teardown ordering.
     func rebind(to viewModel: ViewModel, states: [KMPState<ViewModel>]) {
         rebind(to: viewModel, source: .explicit(states))
@@ -138,7 +132,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         stopObserving()
         wrappedValue = viewModel
         startObserving(source)
-        emitChange()
+        scheduleChange()
     }
 
     private func startObserving(
@@ -149,22 +143,16 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
 
         let states: [KMPState<ViewModel>]
         switch source {
-        case .none:
-            states = []
-        case .automaticSKIE:
-            #if canImport(ObjectiveC)
+        case .staticPlan(let plan):
             states = [
                 .custom { viewModel, notify, reportError in
-                    KMPAutomaticStateFlowRuntime.observe(
+                    plan.observe(
                         viewModel,
                         notify: notify,
                         reportError: reportError
                     )
                 },
             ]
-            #else
-            states = []
-            #endif
         case .explicit(let explicitStates):
             states = explicitStates
         }
@@ -172,27 +160,23 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         observations = states.map { state in
             state.observe(
                 wrappedValue,
-                { [weak self] in
-                    Task { @MainActor [weak self] in
-                        guard
-                            let self,
-                            self.generation == activeGeneration
-                        else {
-                            return
-                        }
-                        self.scheduleChange()
+                { @MainActor [weak self] in
+                    guard
+                        let self,
+                        self.generation == activeGeneration
+                    else {
+                        return
                     }
+                    self.scheduleChange()
                 },
-                { [weak self] error in
-                    Task { @MainActor [weak self] in
-                        guard
-                            let self,
-                            self.generation == activeGeneration
-                        else {
-                            return
-                        }
-                        self.failurePolicy.report(error)
+                { @MainActor [weak self] error in
+                    guard
+                        let self,
+                        self.generation == activeGeneration
+                    else {
+                        return
                     }
+                    self.failurePolicy.report(error)
                 }
             )
         }
@@ -230,7 +214,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         #if canImport(Observation)
         if modernObservationEnabled {
             if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
-               let revision = modernRevision as? KMPModernRevision {
+               let revision = modernRevision as? KMPObservationRevision {
                 revision.value &+= 1
                 return
             }
@@ -245,7 +229,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
             return
         }
         if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *) {
-            modernRevision = KMPModernRevision()
+            modernRevision = KMPObservationRevision()
         }
         #endif
     }
@@ -254,12 +238,10 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         #if canImport(Observation)
         if modernObservationEnabled {
             if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
-               let revision = modernRevision as? KMPModernRevision {
+               let revision = modernRevision as? KMPObservationRevision {
                 _ = revision.value
             }
         }
         #endif
     }
 }
-
-typealias KMPViewModel<ViewModel: AnyObject> = KMPViewModelStore<ViewModel>

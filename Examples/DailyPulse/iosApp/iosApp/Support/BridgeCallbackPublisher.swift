@@ -2,8 +2,6 @@ import Combine
 import shared
 import KMPObservableBridge
 
-extension BridgeCallbackState: @retroactive KMPValueProperty {}
-
 extension BridgeExampleViewModel {
     var callbackPublisher: AnyPublisher<String, Never> {
         BridgeCallbackStatePublisher(state: callbackState)
