@@ -4,7 +4,6 @@
 /// same Kotlin state concurrently.
 @MainActor
 enum KMPObservationSource<ViewModel: AnyObject> {
-    case none
     case staticPlan(KMPObservationPlan<ViewModel>)
     case explicit([KMPState<ViewModel>])
 }

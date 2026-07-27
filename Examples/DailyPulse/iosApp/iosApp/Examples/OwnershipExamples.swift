@@ -92,12 +92,12 @@ private struct BridgeExampleContentView: View {
             if example.counterState.isLoading {
                 ProgressView()
             }
-            Text(example.messageState).foregroundColor(.secondary)
+            Text($example.messageState).foregroundColor(.secondary)
             TextField("Writable Kotlin search text", text: $example.searchText)
                 .textFieldStyle(.roundedBorder)
             HStack(spacing: 4) {
                 Text("Kotlin value:")
-                Text(example.searchTextState)
+                Text($example.searchTextState)
             }
                 .font(.caption)
                 .foregroundColor(.secondary)

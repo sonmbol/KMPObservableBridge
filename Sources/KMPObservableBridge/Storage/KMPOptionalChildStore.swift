@@ -11,8 +11,8 @@ final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
     private(set) var child: Child?
     private(set) var childStore: KMPViewModelStore<Child>?
 
-    private let parent: Parent
-    private let currentChild: @MainActor () -> Child?
+    private var parent: Parent
+    private var currentChild: @MainActor (Parent) -> Child?
     private let childStates: [KMPState<Child>]
     private let updatePolicy: KMPUpdatePolicy
     private let failurePolicy: KMPObservationFailurePolicy
@@ -23,7 +23,7 @@ final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
     init(
         parent: Parent,
         parentState: KMPState<Parent>,
-        currentChild: @escaping @MainActor () -> Child?,
+        currentChild: @escaping @MainActor (Parent) -> Child?,
         childStates: [KMPState<Child>],
         updatePolicy: KMPUpdatePolicy,
         failurePolicy: KMPObservationFailurePolicy
@@ -33,7 +33,25 @@ final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
         self.childStates = childStates
         self.updatePolicy = updatePolicy
         self.failurePolicy = failurePolicy
-        replaceChild(with: currentChild())
+        replaceChild(with: currentChild(parent))
+        startParentObservation(parentState)
+    }
+
+    func rebind(
+        to parent: Parent,
+        parentState: KMPState<Parent>,
+        currentChild: @escaping @MainActor (Parent) -> Child?
+    ) {
+        guard self.parent !== parent else {
+            return
+        }
+
+        generation &+= 1
+        parentObservation?.cancel()
+        parentObservation = nil
+        self.parent = parent
+        self.currentChild = currentChild
+        replaceChild(with: currentChild(parent))
         startParentObservation(parentState)
     }
 
@@ -57,7 +75,7 @@ final class KMPOptionalChildStore<Parent: AnyObject, Child: AnyObject>:
                 else {
                     return
                 }
-                self.replaceChild(with: self.currentChild())
+                self.replaceChild(with: self.currentChild(self.parent))
             },
             { @MainActor [weak self] error in
                 guard

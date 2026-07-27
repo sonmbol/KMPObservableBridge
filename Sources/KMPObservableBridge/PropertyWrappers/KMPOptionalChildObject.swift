@@ -4,9 +4,12 @@ import SwiftUI
 @MainActor
 @propertyWrapper
 public struct KMPOptionalChildObject<Parent: AnyObject, Child: AnyObject>:
-    DynamicProperty
+    @preconcurrency DynamicProperty
 {
     @StateObject private var storage: KMPOptionalChildStore<Parent, Child>
+    private let parent: Parent
+    private let parentState: KMPState<Parent>
+    private let currentChild: @MainActor (Parent) -> Child?
 
     public var wrappedValue: Child? {
         storage.child
@@ -27,11 +30,15 @@ public struct KMPOptionalChildObject<Parent: AnyObject, Child: AnyObject>:
         Flow.Element == Child?,
         Flow.Value == Child?
     {
+        let parentState: KMPState<Parent> = .asyncSequence(child)
+        self.parent = parent
+        self.parentState = parentState
+        currentChild = { $0[keyPath: child].value }
         _storage = StateObject(
             wrappedValue: KMPOptionalChildStore(
                 parent: parent,
-                parentState: .asyncSequence(child),
-                currentChild: { parent[keyPath: child].value },
+                parentState: parentState,
+                currentChild: { $0[keyPath: child].value },
                 childStates: [.asyncSequence(state)],
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy
@@ -51,16 +58,29 @@ public struct KMPOptionalChildObject<Parent: AnyObject, Child: AnyObject>:
         Flow.Element == Child?,
         Flow.Value == Child?
     {
+        let parentState: KMPState<Parent> = .asyncSequence(child)
+        self.parent = parent
+        self.parentState = parentState
+        currentChild = { $0[keyPath: child].value }
         _storage = StateObject(
             wrappedValue: KMPOptionalChildStore(
                 parent: parent,
-                parentState: .asyncSequence(child),
-                currentChild: { parent[keyPath: child].value },
+                parentState: parentState,
+                currentChild: { $0[keyPath: child].value },
                 childStates: [.asyncSequence(first)]
                     + KMPState<Child>.asyncSequences(repeat each states),
                 updatePolicy: updatePolicy,
                 failurePolicy: failurePolicy
             )
+        )
+    }
+
+    public mutating func update() {
+        _storage.update()
+        storage.rebind(
+            to: parent,
+            parentState: parentState,
+            currentChild: currentChild
         )
     }
 }

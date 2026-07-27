@@ -220,7 +220,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let model = Model()
         var receivedChanges = 0
         var receivedError: TestError?
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.publisher(\.subject)],
             updatePolicy: .immediate,
@@ -434,7 +434,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let first = Model()
         let second = Model()
         var receivedChanges = 0
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             first,
             states: [.publisher(\.subject)],
             updatePolicy: .immediate,
@@ -463,7 +463,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let first = Model()
         let second = Model()
         var receivedChanges = 0
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             first,
             states: [.publisher(\.subject)],
             updatePolicy: .coalesced,
@@ -488,7 +488,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let model = Model()
         weak var weakModel = model
         var disposalCount = 0
-        var bridge: KMPViewModel<Model>? = KMPViewModel(
+        var bridge: KMPViewModelStore<Model>? = KMPViewModelStore(
             model,
             states: [],
             updatePolicy: .immediate,
@@ -510,11 +510,11 @@ final class KMPObservableBridgeTests: XCTestCase {
 
     func testBridgeAndModelDeallocateWithoutRetainCycle() {
         weak var weakModel: Model?
-        weak var weakBridge: KMPViewModel<Model>?
+        weak var weakBridge: KMPViewModelStore<Model>?
 
         do {
             let model = Model()
-            let bridge = KMPViewModel(
+            let bridge = KMPViewModelStore(
                 model,
                 states: [.publisher(\.subject)],
                 updatePolicy: .immediate,
@@ -537,7 +537,7 @@ final class KMPObservableBridgeTests: XCTestCase {
             continuation.yield(1)
             continuation.finish()
         }
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.asyncSequence { _ in sequence }],
             updatePolicy: .immediate,
@@ -559,7 +559,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let sequence = AsyncThrowingStream<Int, Error> { continuation in
             continuation.finish(throwing: TestError.failed)
         }
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.asyncSequence { _ in sequence }],
             updatePolicy: .immediate,
@@ -587,7 +587,7 @@ final class KMPObservableBridgeTests: XCTestCase {
                 }
             }
         }
-        var bridge: KMPViewModel<Model>? = KMPViewModel(
+        var bridge: KMPViewModelStore<Model>? = KMPViewModelStore(
             model,
             states: [.asyncSequence { _ in sequence }],
             updatePolicy: .immediate,
@@ -614,7 +614,7 @@ final class KMPObservableBridgeTests: XCTestCase {
             }
             return .empty
         }
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [state],
             updatePolicy: .immediate,
@@ -634,7 +634,7 @@ final class KMPObservableBridgeTests: XCTestCase {
     func testHighFrequencyPublisherDoesNotDropInvalidations() async {
         let model = Model()
         var receivedChanges = 0
-        let bridge = KMPViewModel(
+        let bridge = KMPViewModelStore(
             model,
             states: [.publisher(\.subject)],
             updatePolicy: .immediate,
@@ -671,9 +671,21 @@ final class KMPObservableBridgeTests: XCTestCase {
         XCTAssertTrue(observed.wrappedValue === observedModel)
     }
 
-    func testTextAcceptsStringValuePropertyWithoutExplicitValueRead() {
-        let message = ValueStream("Ready")
-        _ = Text(message)
+    func testProjectedStoreReturnsNativeContainerValue() {
+        let child = StreamModel()
+        let model = FlowParentModel(child: child)
+        let store = KMPViewModelStore(
+            model,
+            states: [],
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+
+        let projectedChild: StreamModel? = store.childState
+
+        XCTAssertTrue(projectedChild === child)
     }
 
     func testHeterogeneousStateKeyPathConvenience() {
@@ -806,6 +818,35 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         XCTAssertNil(wrapper.wrappedValue)
         XCTAssertNil(wrapper.projectedValue)
+    }
+
+    func testOptionalFlowChildRebindsWhenParentIdentityChanges() async {
+        let firstChild = StreamModel()
+        let secondChild = StreamModel()
+        var firstParent: FlowParentModel? = FlowParentModel(child: firstChild)
+        let secondParent = FlowParentModel(child: secondChild)
+        weak var weakFirstParent = firstParent
+        let store = KMPOptionalChildStore(
+            parent: firstParent!,
+            parentState: .asyncSequence(\.childState),
+            currentChild: { $0.childState.value },
+            childStates: [.asyncSequence(\.state)],
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore
+        )
+
+        XCTAssertTrue(store.child === firstChild)
+
+        store.rebind(
+            to: secondParent,
+            parentState: .asyncSequence(\.childState),
+            currentChild: { $0.childState.value }
+        )
+        firstParent = nil
+        await settleMainActorTasks()
+
+        XCTAssertTrue(store.child === secondChild)
+        XCTAssertNil(weakFirstParent)
     }
 
     func testProjectedStoreCanBeInjectedWithoutCreatingAnotherStore() {

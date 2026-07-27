@@ -116,8 +116,28 @@ callbacks, and custom cancellation adapters.
 
 ### Native projected bindings
 
-The projected store creates a `Binding` only for a genuinely writable exported
-property:
+The projected store unwraps read-only KMP value containers into their native
+Swift values:
+
+```swift
+Text($profile.messageState)
+
+if $profile.loadingState {
+    ProgressView()
+}
+
+Text($profile.countState, format: .number)
+```
+
+The unprojected value remains the original Kotlin object, so actions keep their
+natural syntax:
+
+```swift
+profile.retry()
+```
+
+For a genuinely writable exported property, the same projected store creates a
+`Binding`:
 
 ```swift
 TextField("Search", text: $profile.searchText)

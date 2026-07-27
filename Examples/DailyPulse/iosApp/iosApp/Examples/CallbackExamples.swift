@@ -33,7 +33,7 @@ private struct CallbackAdapterExampleView: View {
     var body: some View {
         AdapterContent(
             title: "Callback",
-            message: example.callbackState.value,
+            message: $example.callbackState,
             increment: example.increment,
             reset: example.reset
         )
@@ -50,7 +50,7 @@ private struct CombineAdapterExampleView: View {
     var body: some View {
         AdapterContent(
             title: "Combine",
-            message: example.callbackState.value,
+            message: $example.callbackState,
             increment: example.increment,
             reset: example.reset
         )

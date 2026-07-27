@@ -4,6 +4,8 @@ All notable changes follow Keep a Changelog and Semantic Versioning.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-27
+
 ### Added
 
 - Generated static observation plans with compiler-checked ViewModel and

@@ -86,6 +86,18 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         wrappedValue
     }
 
+    /// Reads the current value of a KMP state container.
+    ///
+    /// The projected store deliberately performs the container-to-value
+    /// conversion so SwiftUI APIs receive native `String`, `Bool`, numeric, or
+    /// domain values without exposing the interop container's `.value`.
+    public subscript<Property>(
+        dynamicMember keyPath: KeyPath<ViewModel, Property>
+    ) -> Property.Value where Property: KMPValueProperty {
+        trackModernAccess()
+        return wrappedValue[keyPath: keyPath].value
+    }
+
     /// Creates a native SwiftUI binding for a genuinely writable export.
     ///
     /// Read-only StateFlows don't have a `WritableKeyPath`, so the compiler
@@ -131,8 +143,6 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
 
         let states: [KMPState<ViewModel>]
         switch source {
-        case .none:
-            states = []
         case .staticPlan(let plan):
             states = [
                 .custom { viewModel, notify, reportError in
@@ -235,5 +245,3 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         #endif
     }
 }
-
-typealias KMPViewModel<ViewModel: AnyObject> = KMPViewModelStore<ViewModel>

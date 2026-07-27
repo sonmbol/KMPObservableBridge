@@ -14,8 +14,8 @@ the model and uses a generation guard to suppress already-enqueued emissions.
 
 #### 3. 🚀 Refactored Code Implementation
 The complete implementation is in
-`Sources/KMPObservableBridge/KMPObservedObject.swift` and
-`Sources/KMPObservableBridge/KMPViewModelStore.swift`.
+`Sources/KMPObservableBridge/PropertyWrappers/KMPObservedObject.swift` and
+`Sources/KMPObservableBridge/Storage/KMPViewModelStore.swift`.
 
 ---
 
@@ -32,7 +32,7 @@ once, and synchronously cancel from `deinit`.
 
 #### 3. 🚀 Refactored Code Implementation
 The complete token implementation is in
-`Sources/KMPObservableBridge/KMPObservation.swift`.
+`Sources/KMPObservableBridge/Core/KMPObservation.swift`.
 
 ---
 
@@ -87,7 +87,7 @@ observation generation after hopping actors.
 
 #### 3. 🚀 Refactored Code Implementation
 The complete delivery pipeline is in
-`Sources/KMPObservableBridge/KMPViewModelStore.swift`, with a background-thread
+`Sources/KMPObservableBridge/Storage/KMPViewModelStore.swift`, with a background-thread
 regression test in `Tests/KMPObservableBridgeTests`.
 
 ---
@@ -106,6 +106,6 @@ cancels subscriptions.
 
 #### 3. 🚀 Refactored Code Implementation
 The complete ownership API is in
-`Sources/KMPObservableBridge/KMPStateObject.swift` and
-`Sources/KMPObservableBridge/KMPObservedObject.swift`; Kotlin `clear()` usage is
+`Sources/KMPObservableBridge/PropertyWrappers/KMPStateObject.swift` and
+`Sources/KMPObservableBridge/PropertyWrappers/KMPObservedObject.swift`; Kotlin `clear()` usage is
 documented in `README.md`.
