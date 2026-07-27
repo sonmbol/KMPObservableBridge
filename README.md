@@ -7,9 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 KMPObservableBridge lets SwiftUI observe real Kotlin Multiplatform ViewModels
-without shadow Swift ViewModels. Version 2 uses local Swift macros and
-statically typed observation plans: no generated source files, selector
-discovery, swizzling, Objective-C interception, or undocumented SKIE ABI lookup.
+without shadow Swift ViewModels. Local Swift macros create statically typed
+observation plans: no generated source files, selector discovery, swizzling,
+Objective-C interception, or undocumented SKIE ABI lookup.
 
 ```swift
 @KMPStateObject private var profile = ProfileViewModel()
@@ -48,6 +48,8 @@ ViewModel integration:
 import shared
 import KMPObservableBridgeSKIE
 
+extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
+
 @KMPObservable(
     ProfileViewModel.self,
     fields: \.profileState, \.permissionsState
@@ -57,6 +59,9 @@ extension ProfileViewModel: @retroactive KMPStaticallyObservable {}
 
 Place this extension beside the feature that owns the ViewModel. If multiple
 screens share it, declare the conformance once in a shared integration file.
+Declare the `SkieSwiftStateFlow` interoperability conformance once per
+application module; it allows the projected store to expose the flow's native
+current value without `.value`.
 SKIE factories exist only in `KMPObservableBridgeSKIE`; they are not visible
 to applications that import `KMPObservableBridgeNative`.
 
@@ -73,7 +78,7 @@ struct ProfileScreen: View {
     private var profile
 
     var body: some View {
-        ProfileContent(state: profile.profileState)
+        ProfileContent(state: $profile.profileState)
     }
 }
 ```
@@ -97,7 +102,8 @@ as visual `onDisappear`.
 
 ### Explicit fallback adapters
 
-Generation is not required when the observation source is supplied explicitly:
+The macro conformance is not required when the observation source is supplied
+explicitly:
 
 ```swift
 @KMPStateObject(state: \.profileState)
@@ -114,9 +120,10 @@ private var profile
 `KMPState` also supports KMP-NativeCoroutines flows, Combine publishers,
 callbacks, and custom cancellation adapters.
 
-### Native projected bindings
+### Native state projection and bindings
 
-The projected store unwraps read-only KMP value containers into their native
+The wrapper deliberately keeps the unprojected value as the original Kotlin
+object. Its projected store unwraps read-only KMP value containers into native
 Swift values:
 
 ```swift
@@ -129,8 +136,9 @@ if $profile.loadingState {
 Text($profile.countState, format: .number)
 ```
 
-The unprojected value remains the original Kotlin object, so actions keep their
-natural syntax:
+This is a direct synchronous read from the Kotlin container; the bridge does
+not cache or duplicate the emitted value. Because the unprojected value remains
+the original Kotlin object, actions keep their natural syntax:
 
 ```swift
 profile.retry()
@@ -155,6 +163,17 @@ Button("Retry") {
 
 The projected store also exposes `rawModel` as an escape hatch for APIs that
 need the original imported object.
+
+The projection contract is:
+
+```swift
+profile.retry()              // Kotlin action
+$profile.messageState        // String
+$profile.loadingState        // Bool
+$profile.countState          // Int
+$profile.searchText          // Binding<String>
+$profile.rawModel            // Original Kotlin object
+```
 
 ### Optional hot-path filtering
 
@@ -208,8 +227,8 @@ swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
 ```
 
 The DailyPulse app is the end-to-end fixture. CI builds its real SKIE
-framework, regenerates plans from a clean checkout, compiles the iOS target,
-and audits production sources for Objective-C interception APIs.
+framework, expands the feature-local observation macros, compiles the iOS
+target, and audits production sources for Objective-C interception APIs.
 
 ## License
 
