@@ -38,6 +38,18 @@ final class KMPObservableBridgeMacroTests: XCTestCase {
                         reportError: reportError
                     )
                 }
+
+                public static func kmpStartObservation(
+                    on model: ProfileViewModel,
+                    notifyDependency: @escaping KMPObservationDependencyNotify,
+                    reportError: @escaping KMPObservationErrorHandler
+                ) -> KMPObservation {
+                    kmpObservationPlan.observeDependencies(
+                        on: model,
+                        notifyDependency: notifyDependency,
+                        reportError: reportError
+                    )
+                }
             }
             """,
             macros: macros

@@ -13,7 +13,7 @@ public extension KMPState {
     static func asyncSequence<Sequence: AsyncSequence>(
         _ keyPath: KeyPath<ViewModel, Sequence>
     ) -> Self {
-        asyncSequence { $0[keyPath: keyPath] }
+        asyncSequence(keyPath, everyEmissionFrom: { $0[keyPath: keyPath] })
     }
 
     /// Observes every emission without equality suppression.
@@ -38,7 +38,7 @@ public extension KMPState {
         _ keyPath: KeyPath<ViewModel, Sequence>,
         changes select: @escaping @MainActor (Sequence.Element) -> Selection
     ) -> Self {
-        Self { viewModel, notify, reportError in
+        Self(dependency: .field(keyPath)) { viewModel, notify, reportError in
             let source = viewModel[keyPath: keyPath]
             let task = Task { @MainActor in
                 var previous: Selection?
@@ -83,7 +83,16 @@ public extension KMPState {
     static func asyncSequence<Sequence: AsyncSequence>(
         _ sequence: @escaping @MainActor (ViewModel) -> Sequence
     ) -> Self {
-        Self { viewModel, notify, reportError in
+        asyncSequence(nil, everyEmissionFrom: sequence)
+    }
+
+    private static func asyncSequence<Sequence: AsyncSequence>(
+        _ keyPath: AnyKeyPath?,
+        everyEmissionFrom sequence: @escaping @MainActor (ViewModel) -> Sequence
+    ) -> Self {
+        Self(
+            dependency: keyPath.map(KMPObservationDependency.field) ?? .global
+        ) { viewModel, notify, reportError in
             let source = sequence(viewModel)
             let task = Task { @MainActor in
                 do {

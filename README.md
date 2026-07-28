@@ -1,55 +1,111 @@
+<div align="center">
+
 # KMPObservableBridge
 
-![KMPObservableBridge — Kotlin State. Native SwiftUI.](Assets/social-preview.png)
+### Kotlin state. Native SwiftUI.
+
+A Swift-first, lifecycle-safe observation bridge for Kotlin Multiplatform
+ViewModels, SKIE, KMP-NativeCoroutines, and SwiftUI.
+
+<img src="Assets/bridge-hero.png" alt="Kotlin state crossing a luminous bridge into native SwiftUI interfaces" width="100%">
 
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
-[![CI](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/swift.yml/badge.svg)](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/swift.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Platforms](https://img.shields.io/badge/Platforms-iOS%2015%2B%20%7C%20macOS%2011%2B-blue)](#requirements)
+[![CI](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/ci.yml/badge.svg)](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-KMPObservableBridge lets SwiftUI observe real Kotlin Multiplatform ViewModels
-without shadow Swift ViewModels. Local Swift macros create statically typed
-observation plans: no generated source files, selector discovery, swizzling,
-Objective-C interception, or undocumented SKIE ABI lookup.
+</div>
 
 ```swift
 @KMPStateObject private var profile = ProfileViewModel()
+
+var body: some View {
+    ProfileContent(
+        state: $profile.profileState,
+        searchText: $profile.searchText,
+        retry: profile.retry
+    )
+}
 ```
 
-Kotlin remains the source of truth. One macro declaration per ViewModel lists
-its exported state with ordinary Swift key paths, so a renamed or incompatible
-property fails the application build.
+No shadow Swift ViewModel. No copied business state. No runtime reflection,
+swizzling, selector discovery, or generated source file.
 
-## Requirements
+## Why KMPObservableBridge?
 
-- Swift 5.9+
-- iOS 15+, macOS 11+, tvOS 14+, or watchOS 7+
-- A KMP framework whose `StateFlow` properties are exposed as Swift
-  `AsyncSequence`s, such as a framework enhanced by SKIE
+Kotlin remains the authoritative source of truth while SwiftUI receives native
+values, bindings, ownership semantics, and precise dependencies.
 
-## Installation
+| Capability | Behavior |
+| --- | --- |
+| Native ownership | `@KMPStateObject`, `@KMPObservedObject`, and `@KMPEnvironmentObject` mirror SwiftUI’s ownership language |
+| Field-level dependencies | On iOS 17+, only views that read an emitted projected field are invalidated |
+| Shared collection | Multiple SwiftUI wrappers share one collector set per Kotlin model |
+| Native projection | `$viewModel.state` returns the current Swift value without exposing `.value` |
+| Safe bindings | Writable Kotlin exports produce `Binding`; read-only StateFlows remain read-only |
+| Deterministic lifetime | Collection, callback, Combine, and NativeFlow cancellation follow SwiftUI identity storage |
+| Exporter isolation | SKIE and NativeCoroutines APIs live in separate package products |
+| Compile-time configuration | Macros validate imported ViewModel types and state key paths |
 
-Add `https://github.com/sonmbol/KMPObservableBridge.git` as a Swift Package and
-link exactly the integration used by the application target:
+<p align="center">
+  <img src="Assets/demo.gif" alt="DailyPulse demonstrating SwiftUI ownership, SKIE StateFlow observation, explicit adapters, and NativeCoroutines" width="360">
+</p>
 
-- `KMPObservableBridgeSKIE` for SKIE StateFlows.
-- `KMPObservableBridgeNative` for KMP-NativeCoroutines or structural native
-  adapters.
-- `KMPObservableBridge` only for exporter-neutral explicit APIs.
+## Architecture
 
-The native and core products do not expose SKIE factories or SKIE runtime
-types.
+<p align="center">
+  <img src="Assets/architecture.svg" alt="KMPObservableBridge runtime architecture" width="100%">
+</p>
 
-### Declare each ViewModel
+The bridge never stores a second copy of emitted business state:
 
-Place the macros in a normal application source file near the feature or
-ViewModel integration:
+1. Kotlin `StateFlow` owns the current value.
+2. SKIE exposes synchronous value access and an `AsyncSequence`.
+3. A weak per-model registry shares one observation hub across wrappers.
+4. Equality filtering rejects consecutive duplicates.
+5. Coalescing unions all dependencies changed in the same main-actor turn.
+6. SwiftUI reevaluates views that read the affected projected field.
+
+Direct model consumers intentionally receive global invalidation. Custom
+adapters without a key path also invalidate globally because the affected
+field cannot be identified safely.
+
+## Quick start
+
+### 1. Add the package
+
+Add this repository through Xcode’s **Package Dependencies** interface:
+
+```text
+https://github.com/sonmbol/KMPObservableBridge.git
+```
+
+Link exactly one primary integration product:
+
+| Project setup | Product |
+| --- | --- |
+| SKIE StateFlow | `KMPObservableBridgeSKIE` |
+| KMP-NativeCoroutines | `KMPObservableBridgeNative` |
+| Callbacks, Combine, or custom adapters | `KMPObservableBridge` |
+
+The core and Native products do not expose SKIE symbols.
+
+### 2. Enable native value projection
+
+Declare this once in the application module when using SKIE:
 
 ```swift
 import shared
 import KMPObservableBridgeSKIE
 
 extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
+```
 
+### 3. Declare observable fields
+
+Place the declaration beside the feature that owns the ViewModel:
+
+```swift
 @KMPObservable(
     ProfileViewModel.self,
     fields: \.profileState, \.permissionsState
@@ -57,17 +113,16 @@ extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
 extension ProfileViewModel: @retroactive KMPStaticallyObservable {}
 ```
 
-Place this extension beside the feature that owns the ViewModel. If multiple
-screens share it, declare the conformance once in a shared integration file.
-Declare the `SkieSwiftStateFlow` interoperability conformance once per
-application module; it allows the projected store to expose the flow's native
-current value without `.value`.
-SKIE factories exist only in `KMPObservableBridgeSKIE`; they are not visible
-to applications that import `KMPObservableBridgeNative`.
+The fields are ordinary Swift key paths. Renaming a Kotlin export or selecting
+an incompatible property fails at compile time.
 
-## Usage
+Swift macros cannot inspect members of imported Kotlin classes, so fields must
+be listed explicitly. This avoids runtime reflection and build-generated Swift
+files.
 
-Own a ViewModel for the lifetime of a SwiftUI identity:
+### 4. Use native ownership
+
+Own the ViewModel for one SwiftUI identity:
 
 ```swift
 struct ProfileScreen: View {
@@ -78,93 +133,68 @@ struct ProfileScreen: View {
     private var profile
 
     var body: some View {
-        ProfileContent(state: $profile.profileState)
+        ProfileContent(viewModel: profile)
     }
 }
 ```
 
-Observe a model owned by a parent or dependency container:
+Observe a model owned elsewhere:
 
 ```swift
 struct ProfileContent: View {
     @KMPObservedObject private var profile: ProfileViewModel
 
-    init(profile: ProfileViewModel) {
-        _profile = KMPObservedObject(profile)
+    init(viewModel: ProfileViewModel) {
+        _profile = KMPObservedObject(viewModel)
+    }
+
+    var body: some View {
+        Text($profile.profileState.title)
     }
 }
 ```
 
-No lifecycle view modifier is required. `@StateObject` owns the coordinator;
-its destruction releases the shared observation lease. This follows
-destruction of SwiftUI identity storage, which is intentionally not the same
-as visual `onDisappear`.
-
-### Explicit fallback adapters
-
-The macro conformance is not required when the observation source is supplied
-explicitly:
+Inject the same store through the environment without creating another
+subscription:
 
 ```swift
-@KMPStateObject(state: \.profileState)
-private var profile = ProfileViewModel()
+ProfileContent()
+    .kmpEnvironmentObject($profile)
 
-@KMPObservedObject(
-    profile,
-    states: \.profileState,
-    \.permissionsState
-)
-private var profile
-```
-
-`KMPState` also supports KMP-NativeCoroutines flows, Combine publishers,
-callbacks, and custom cancellation adapters.
-
-### Native state projection and bindings
-
-The wrapper deliberately keeps the unprojected value as the original Kotlin
-object. Its projected store unwraps read-only KMP value containers into native
-Swift values:
-
-```swift
-Text($profile.messageState)
-
-if $profile.loadingState {
-    ProgressView()
+struct ProfileContent: View {
+    @KMPEnvironmentObject private var profile: ProfileViewModel
 }
-
-Text($profile.countState, format: .number)
 ```
 
-This is a direct synchronous read from the Kotlin container; the bridge does
-not cache or duplicate the emitted value. Because the unprojected value remains
-the original Kotlin object, actions keep their natural syntax:
+## Native values and bindings
+
+The unprojected property remains the original Kotlin object. Use it for
+actions:
 
 ```swift
 profile.retry()
+profile.selectArticle(id: article.id)
 ```
 
-For a genuinely writable exported property, the same projected store creates a
-`Binding`:
+The projected store returns native current values:
+
+```swift
+Text($profile.messageState)                 // String
+ProgressView(value: $profile.progressState) // Double
+
+if $profile.loadingState {                  // Bool
+    ProgressView()
+}
+```
+
+A writable Kotlin export produces a native binding:
 
 ```swift
 TextField("Search", text: $profile.searchText)
 ```
 
-Read-only StateFlows cannot form a `WritableKeyPath`, so the compiler refuses
-to create an unsafe binding. Update immutable screen state through Kotlin
-actions:
-
-```swift
-Button("Retry") {
-    profile.retry()
-}
-```
-
-The projected store also exposes `rawModel` as an escape hatch for APIs that
-need the original imported object.
-
-The projection contract is:
+A read-only StateFlow cannot form a `WritableKeyPath`, so an unsafe binding
+cannot compile. Change immutable state through Kotlin actions.
 
 ```swift
 profile.retry()              // Kotlin action
@@ -175,10 +205,29 @@ $profile.searchText          // Binding<String>
 $profile.rawModel            // Original Kotlin object
 ```
 
-### Optional hot-path filtering
+## Explicit adapters
 
-Whole emitted-state equality is the normal default. A measured hot screen can
-invalidate for only one projection:
+Macros are optional when observation is configured at the wrapper:
+
+```swift
+@KMPStateObject(state: \.profileState)
+private var profile = ProfileViewModel()
+
+@KMPObservedObject(
+    profile,
+    states: \.profileState, \.permissionsState
+)
+private var profile
+```
+
+`KMPState` supports:
+
+- SKIE `AsyncSequence` and `StateFlow`
+- KMP-NativeCoroutines `NativeFlow`
+- Combine publishers
+- Callback APIs with explicit cancellation
+- Custom adapters
+- Equatable projections for measured hot paths
 
 ```swift
 @KMPObservedObject(
@@ -189,47 +238,172 @@ invalidate for only one projection:
 private var profile
 ```
 
-### Update policy
+## Rendering and lifecycle guarantees
 
-`.coalesced` is the default and combines accepted emissions in one main-actor
-turn. Event-like streams can opt into `.immediate`.
+### SwiftUI identity
+
+`@KMPStateObject` stores its coordinator in SwiftUI identity storage. Moving
+or conditionally replacing the view follows normal `StateObject` lifetime
+rules. Visual `onDisappear` is not treated as destruction.
+
+### Collection sharing
+
+All wrappers observing the same model identity lease the same hub. The final
+lease cancels its underlying collectors.
+
+### Rebinding
+
+An externally owned wrapper cancels its old lease before observing a new
+model. Generation tokens suppress emissions racing from the previous model.
+
+### Main actor
+
+SKIE collection, equality validation, dependency delivery, coalescing, and
+SwiftUI invalidation remain on `MainActor`. Foreign callbacks cross actors
+once before entering the bridge.
+
+### Platform behavior
+
+| Platform generation | Invalidation model |
+| --- | --- |
+| iOS 17+, macOS 14+, tvOS 17+, watchOS 10+ | Lazy field-level Observation dependencies |
+| Earlier supported systems | Correct `ObservableObject.objectWillChange` fallback |
+
+## Update policies
+
+`.coalesced` is the default. It schedules at most one flush per main-actor turn
+while preserving every changed dependency:
+
+```swift
+@KMPStateObject private var profile = ProfileViewModel()
+```
+
+Event-sensitive consumers can request every accepted emission:
 
 ```swift
 @KMPStateObject(updatePolicy: .immediate)
 private var profile = ProfileViewModel()
 ```
 
-## Runtime model
+Immediate mode does not allocate a dependency set per emission.
 
-The macro-expanded plan is static metadata. At runtime a main-actor weak registry
-keys hubs by `ObjectIdentifier(model)`.
+## Examples and previews
 
-- A model has one collection task per declared flow, even when many views
-  observe it.
-- Every wrapper holds a lightweight listener lease.
-- Consecutive equal values are rejected before wrapper invalidation.
-- The last lease cancels every collection task.
-- Rebinding cancels the old lease first and generation checks reject stale
-  callbacks.
-- Owned models are disposed exactly once; observed and environment models are
-  never disposed.
+The [DailyPulse example](Examples/DailyPulse/iosApp) contains:
 
-On iOS 17+, accepted changes mutate a private Observation revision read during
-view evaluation. On iOS 15/16, the same coordinator emits
-`objectWillChange`. Collection, equality, coalescing, error handling, and
-cancellation are shared.
+- Macro-declared SKIE StateFlow observation
+- `StateObject`, `ObservedObject`, and environment ownership
+- Native writable bindings
+- KMP-NativeCoroutines
+- Callback cancellation
+- Combine publisher observation
+- Injector-owned ViewModels
+- Loading, error, empty, populated, and dark-mode previews
 
-## Development
+<p align="center">
+  <img src="Assets/demo.png" alt="DailyPulse SwiftUI ownership example with Kotlin-backed state, writable binding, child observation, and environment sharing" width="360">
+</p>
+
+Every example uses a thin live bridge container around a pure SwiftUI
+presentation view:
+
+```text
+KMP ViewModel
+    ↓ thin observation container
+Native Swift values + Binding + action closures
+    ↓
+Pure SwiftUI presentation
+```
+
+Preview fixtures contain only Swift values. They do not initialize Koin,
+allocate Kotlin ViewModels, start coroutines, collect flows, or perform network
+work.
+
+## Performance
+
+Reference measurements are committed in
+[Benchmarks/RESULTS.md](Benchmarks/RESULTS.md). On the documented M3 Pro
+release-build run:
+
+| Scenario | Work | Mean |
+| --- | ---: | ---: |
+| Immediate delivery | 10,000 emissions | ~0.007 s |
+| Store lifecycle | 1,000 create/teardown cycles | ~0.005 s |
+| Shared static setup | 1,000 setup/teardown cycles | ~0.007 s |
+
+These are local reference measurements, not universal performance claims.
+Run the suite on target hardware before setting capacity thresholds.
+
+## Requirements
+
+- Swift 5.9+
+- iOS 15+
+- macOS 11+
+- tvOS 14+
+- watchOS 7+
+- An exported asynchronous state source, such as SKIE or
+  KMP-NativeCoroutines
+
+Toolchain-specific package manifests select matching SwiftSyntax versions:
+
+| Swift | SwiftSyntax |
+| --- | --- |
+| 5.9 | 509 |
+| 6.0 | 600 |
+| 6.1 | 601 |
+| 6.2 | 602 |
+
+All manifests expose the same products and public API.
+
+## Validation
+
+CI treats these as release-blocking:
+
+- Unit, lifecycle, cancellation, macro, and dependency-granularity tests
+- Strict concurrency with warnings as errors
+- Public API compatibility against `1.1.0`
+- Swift 5.9–6.2 toolchain builds
+- iOS device and Apple simulator builds
+- SKIE/native symbol-isolation audit
+- Real Gradle → SKIE → macro → Xcode application build
+- Documentation and whitespace checks
+
+Run the primary checks locally:
 
 ```sh
 swift test
-swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+swift test \
+  -Xswiftc -strict-concurrency=complete \
+  -Xswiftc -warnings-as-errors
+./Scripts/check-api.sh
+./Scripts/check-package-manifests.sh
 ```
 
-The DailyPulse app is the end-to-end fixture. CI builds its real SKIE
-framework, expands the feature-local observation macros, compiles the iOS
-target, and audits production sources for Objective-C interception APIs.
+Build the real integration fixture without forcing the macro target onto the
+iOS SDK:
+
+```sh
+xcodebuild build \
+  -project Examples/DailyPulse/iosApp/iosApp.xcodeproj \
+  -scheme iosApp \
+  -destination 'generic/platform=iOS Simulator'
+```
+
+## Documentation
+
+- [DailyPulse integration guide](Examples/DailyPulse/iosApp/README.md)
+- [DocC catalog](Sources/KMPObservableBridge/Documentation/KMPObservableBridge.docc/KMPObservableBridge.md)
+- [Benchmark methodology](Benchmarks/RESULTS.md)
+- [Issue tracker](https://github.com/sonmbol/KMPObservableBridge/issues)
 
 ## License
 
 KMPObservableBridge is available under the [MIT License](LICENSE).
+
+---
+
+<div align="center">
+
+Built for Kotlin Multiplatform teams that want SwiftUI to remain SwiftUI.
+
+</div>

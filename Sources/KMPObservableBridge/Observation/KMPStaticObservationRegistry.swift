@@ -13,7 +13,7 @@ final class KMPStaticObservationRegistry {
     func observe<Model: AnyObject>(
         _ model: Model,
         plan: KMPObservationPlan<Model>,
-        notify: @escaping KMPState<Model>.Notify,
+        notify: @escaping KMPDependencyNotify,
         reportError: @escaping KMPState<Model>.ReportError
     ) -> KMPObservation {
         let key = ObjectIdentifier(model)

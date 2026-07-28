@@ -9,6 +9,27 @@ public protocol KMPStaticallyObservable: AnyObject {
         notify: @escaping KMPObservationNotify,
         reportError: @escaping KMPObservationErrorHandler
     ) -> KMPObservation
+
+    static func kmpStartObservation(
+        on model: Self,
+        notifyDependency: @escaping KMPObservationDependencyNotify,
+        reportError: @escaping KMPObservationErrorHandler
+    ) -> KMPObservation
+}
+
+public extension KMPStaticallyObservable {
+    /// Compatibility route for manually implemented 1.1 conformances.
+    static func kmpStartObservation(
+        on model: Self,
+        notifyDependency: @escaping KMPObservationDependencyNotify,
+        reportError: @escaping KMPObservationErrorHandler
+    ) -> KMPObservation {
+        kmpStartObservation(
+            on: model,
+            notify: { notifyDependency(nil) },
+            reportError: reportError
+        )
+    }
 }
 
 /// A compile-time-checked collection of observation sources for one model.
@@ -22,7 +43,7 @@ public struct KMPObservationPlan<Model: AnyObject> {
 
     func observe(
         _ model: Model,
-        notify: @escaping KMPState<Model>.Notify,
+        notify: @escaping KMPDependencyNotify,
         reportError: @escaping KMPState<Model>.ReportError
     ) -> KMPObservation {
         KMPStaticObservationRegistry.shared.observe(
@@ -39,6 +60,30 @@ public struct KMPObservationPlan<Model: AnyObject> {
         notify: @escaping KMPState<Model>.Notify,
         reportError: @escaping KMPState<Model>.ReportError
     ) -> KMPObservation {
-        observe(model, notify: notify, reportError: reportError)
+        observe(
+            model,
+            notify: { _ in notify() },
+            reportError: reportError
+        )
+    }
+
+    /// Starts the plan while retaining its field dependency keys.
+    public func observeDependencies(
+        on model: Model,
+        notifyDependency: @escaping KMPObservationDependencyNotify,
+        reportError: @escaping KMPObservationErrorHandler
+    ) -> KMPObservation {
+        observe(
+            model,
+            notify: { dependency in
+                switch dependency {
+                case .global:
+                    notifyDependency(nil)
+                case .field(let keyPath):
+                    notifyDependency(keyPath)
+                }
+            },
+            reportError: reportError
+        )
     }
 }

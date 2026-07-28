@@ -12,10 +12,11 @@ public struct KMPState<ViewModel: AnyObject> {
     ) -> KMPObservation
 
     let observe: Observer
+    let dependency: KMPObservationDependency
 
     /// Starts this state adapter outside a wrapper.
     ///
-    /// This is primarily used by build-time generated model conformances.
+    /// This is primarily used by macro-expanded model conformances.
     public func startObservation(
         on viewModel: ViewModel,
         notify: @escaping Notify,
@@ -24,7 +25,11 @@ public struct KMPState<ViewModel: AnyObject> {
         observe(viewModel, notify, reportError)
     }
 
-    init(observe: @escaping Observer) {
+    init(
+        dependency: KMPObservationDependency = .global,
+        observe: @escaping Observer
+    ) {
+        self.dependency = dependency
         self.observe = observe
     }
 }

@@ -19,7 +19,10 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     private let updatePolicy: KMPUpdatePolicy
     private var disposer: Disposer?
     private var pendingChange: Task<Void, Never>?
-    private var modernRevision: AnyObject?
+    private var pendingDependencies: Set<KMPObservationDependency> = []
+    private var globalRevision: AnyObject?
+    private var projectedGlobalRevision: AnyObject?
+    private var fieldRevisions: [AnyKeyPath: AnyObject] = [:]
     private let modernObservationEnabled: Bool
 
     convenience init(
@@ -74,7 +77,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
 
     /// Registers modern Observation access and returns the real Kotlin model.
     public var value: ViewModel {
-        trackModernAccess()
+        trackModernAccess(for: .global)
         return wrappedValue
     }
 
@@ -94,7 +97,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     public subscript<Property>(
         dynamicMember keyPath: KeyPath<ViewModel, Property>
     ) -> Property.Value where Property: KMPValueProperty {
-        trackModernAccess()
+        trackModernAccess(for: .field(keyPath))
         return wrappedValue[keyPath: keyPath].value
     }
 
@@ -107,7 +110,8 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     ) -> Binding<Value> {
         Binding(
             get: { [self] in
-                wrappedValue[keyPath: keyPath]
+                trackModernAccess(for: .field(keyPath))
+                return wrappedValue[keyPath: keyPath]
             },
             set: { [self] value in
                 wrappedValue[keyPath: keyPath] = value
@@ -132,7 +136,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         stopObserving()
         wrappedValue = viewModel
         startObserving(source)
-        scheduleChange()
+        scheduleChange(.global)
     }
 
     private func startObserving(
@@ -141,44 +145,78 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         generation &+= 1
         let activeGeneration = generation
 
-        let states: [KMPState<ViewModel>]
         switch source {
         case .staticPlan(let plan):
-            states = [
-                .custom { viewModel, notify, reportError in
-                    plan.observe(
-                        viewModel,
-                        notify: notify,
-                        reportError: reportError
+            observations = [
+                plan.observe(
+                    wrappedValue,
+                    notify: { @MainActor [weak self] dependency in
+                        guard
+                            let self,
+                            self.generation == activeGeneration
+                        else {
+                            return
+                        }
+                        self.scheduleChange(dependency)
+                    },
+                    reportError: makeErrorHandler(
+                        generation: activeGeneration
                     )
-                },
+                ),
+            ]
+        case .keyed(let observe):
+            observations = [
+                observe(
+                    wrappedValue,
+                    { @MainActor [weak self] keyPath in
+                        guard
+                            let self,
+                            self.generation == activeGeneration
+                        else {
+                            return
+                        }
+                        self.scheduleChange(
+                            keyPath.map(
+                                KMPObservationDependency.field
+                            ) ?? .global
+                        )
+                    },
+                    makeErrorHandler(generation: activeGeneration)
+                ),
             ]
         case .explicit(let explicitStates):
-            states = explicitStates
-        }
-
-        observations = states.map { state in
-            state.observe(
-                wrappedValue,
-                { @MainActor [weak self] in
-                    guard
-                        let self,
-                        self.generation == activeGeneration
-                    else {
-                        return
-                    }
-                    self.scheduleChange()
-                },
-                { @MainActor [weak self] error in
-                    guard
-                        let self,
-                        self.generation == activeGeneration
-                    else {
-                        return
-                    }
-                    self.failurePolicy.report(error)
-                }
+            let reportError = makeErrorHandler(
+                generation: activeGeneration
             )
+            observations = explicitStates.map { state in
+                state.observe(
+                    wrappedValue,
+                    { @MainActor [weak self] in
+                        guard
+                            let self,
+                            self.generation == activeGeneration
+                        else {
+                            return
+                        }
+                        self.scheduleChange(state.dependency)
+                    },
+                    reportError
+                )
+            }
+        }
+    }
+
+    private func makeErrorHandler(
+        generation activeGeneration: UInt
+    ) -> KMPObservationErrorHandler {
+        { @MainActor [weak self] error in
+            guard
+                let self,
+                self.generation == activeGeneration
+            else {
+                return
+            }
+            self.failurePolicy.report(error)
         }
     }
 
@@ -186,16 +224,20 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         generation &+= 1
         pendingChange?.cancel()
         pendingChange = nil
+        pendingDependencies.removeAll(keepingCapacity: true)
         let current = observations
         observations.removeAll(keepingCapacity: false)
         current.forEach { $0.cancel() }
     }
 
-    private func scheduleChange() {
+    private func scheduleChange(
+        _ dependency: KMPObservationDependency
+    ) {
         switch updatePolicy {
         case .immediate:
-            emitChange()
+            emitImmediateChange(for: dependency)
         case .coalesced:
+            pendingDependencies.insert(dependency)
             guard pendingChange == nil else {
                 return
             }
@@ -205,16 +247,21 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
                     return
                 }
                 self.pendingChange = nil
-                self.emitChange()
+                let dependencies = self.pendingDependencies
+                self.pendingDependencies.removeAll(keepingCapacity: true)
+                self.emitCoalescedChange(for: dependencies)
             }
         }
     }
 
-    private func emitChange() {
+    private func emitImmediateChange(
+        for dependency: KMPObservationDependency
+    ) {
         #if canImport(Observation)
         if modernObservationEnabled {
             if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
-               let revision = modernRevision as? KMPObservationRevision {
+               let revision = globalRevision as? KMPObservationRevision {
+                invalidateFieldRevisions(for: dependency)
                 revision.value &+= 1
                 return
             }
@@ -223,23 +270,90 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         objectWillChange.send()
     }
 
+    private func emitCoalescedChange(
+        for dependencies: Set<KMPObservationDependency>
+    ) {
+        #if canImport(Observation)
+        if modernObservationEnabled {
+            if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
+               let revision = globalRevision as? KMPObservationRevision {
+                let isGlobal = dependencies.contains(.global)
+                if isGlobal {
+                    invalidateFieldRevisions(for: .global)
+                } else {
+                    for dependency in dependencies {
+                        invalidateFieldRevisions(for: dependency)
+                    }
+                }
+                revision.value &+= 1
+                return
+            }
+        }
+        #endif
+        objectWillChange.send()
+    }
+
+    #if canImport(Observation)
+    @available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
+    private func invalidateFieldRevisions(
+        for dependency: KMPObservationDependency
+    ) {
+        switch dependency {
+        case .global:
+            let revision =
+                projectedGlobalRevision as? KMPObservationRevision
+            revision?.value &+= 1
+        case .field(let keyPath):
+            let revision =
+                fieldRevisions[keyPath] as? KMPObservationRevision
+            revision?.value &+= 1
+        }
+    }
+
+    #endif
+
     private func configureModernObservation() {
         #if canImport(Observation)
         guard modernObservationEnabled else {
             return
         }
         if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *) {
-            modernRevision = KMPObservationRevision()
+            globalRevision = KMPObservationRevision()
         }
         #endif
     }
 
-    private func trackModernAccess() {
+    private func trackModernAccess(
+        for dependency: KMPObservationDependency
+    ) {
         #if canImport(Observation)
         if modernObservationEnabled {
             if #available(iOS 17, macOS 14, tvOS 17, watchOS 10, *),
-               let revision = modernRevision as? KMPObservationRevision {
-                _ = revision.value
+               let globalRevision =
+                   globalRevision as? KMPObservationRevision {
+                switch dependency {
+                case .global:
+                    _ = globalRevision.value
+                case .field(let keyPath):
+                    let projectedGlobal: KMPObservationRevision
+                    if let existing =
+                        projectedGlobalRevision as? KMPObservationRevision {
+                        projectedGlobal = existing
+                    } else {
+                        projectedGlobal = KMPObservationRevision()
+                        projectedGlobalRevision = projectedGlobal
+                    }
+                    _ = projectedGlobal.value
+                    let revision: KMPObservationRevision
+                    if let existing =
+                        fieldRevisions[keyPath] as? KMPObservationRevision {
+                        revision = existing
+                    } else {
+                        revision = KMPObservationRevision()
+                        fieldRevisions[keyPath] = revision
+                    }
+                    _ = revision.value
+                }
             }
         }
         #endif

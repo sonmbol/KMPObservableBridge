@@ -109,6 +109,18 @@ public struct KMPObservableMacro: MemberMacro {
                         reportError: reportError
                     )
                 }
+
+                public static func kmpStartObservation(
+                    on model: \(model),
+                    notifyDependency: @escaping KMPObservationDependencyNotify,
+                    reportError: @escaping KMPObservationErrorHandler
+                ) -> KMPObservation {
+                    kmpObservationPlan.observeDependencies(
+                        on: model,
+                        notifyDependency: notifyDependency,
+                        reportError: reportError
+                    )
+                }
                 """
             ),
         ]

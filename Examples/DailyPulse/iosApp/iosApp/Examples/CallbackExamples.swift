@@ -65,17 +65,54 @@ private struct AdapterContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            Text(title).font(.title2.bold())
-            Text(message)
-            HStack {
-                Button("Increment", action: increment)
-                    .primaryExampleButtonStyle()
-                Button("Reset", action: reset)
-                    .secondaryExampleButtonStyle()
+            ExampleCard {
+                ExampleHeader(
+                    title: title,
+                    subtitle: "Explicit adapter with deterministic cancellation.",
+                    systemImage: "arrow.triangle.2.circlepath"
+                )
+
+                Divider().padding(.vertical, 4)
+
+                Text(message).font(.headline)
+
+                HStack {
+                    Button("Increment", action: increment)
+                        .primaryExampleButtonStyle()
+                    Button("Reset", action: reset)
+                        .secondaryExampleButtonStyle()
+                }
             }
             Spacer()
         }
         .padding()
         .navigationTitle("\(title) Adapter")
+    }
+}
+
+struct CallbackExamplesView_Previews: PreviewProvider {
+    static var previews: some View {
+        Group {
+            NavigationView {
+                AdapterContent(
+                    title: "Callback",
+                    message: "Callback updated to 3",
+                    increment: {},
+                    reset: {}
+                )
+            }
+            .previewDisplayName("Callback adapter")
+
+            NavigationView {
+                AdapterContent(
+                    title: "Combine",
+                    message: "Publisher delivered on MainActor",
+                    increment: {},
+                    reset: {}
+                )
+            }
+            .preferredColorScheme(.dark)
+            .previewDisplayName("Combine adapter")
+        }
     }
 }
