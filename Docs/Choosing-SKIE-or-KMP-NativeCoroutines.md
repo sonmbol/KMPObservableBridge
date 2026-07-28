@@ -1,135 +1,143 @@
 # Choosing SKIE or KMP-NativeCoroutines for SwiftUI
 
-SKIE and KMP-NativeCoroutines both make Kotlin coroutine APIs easier to consume
-from Swift, but they offer different integration shapes. KMPObservableBridge
-supports both without forcing either dependency into the Swift package.
+SKIE and KMP-NativeCoroutines expose Kotlin coroutine APIs to Swift in different
+shapes. KMPObservableBridge isolates their APIs in separate package products so
+an application can choose its existing export strategy without leaking the
+other integration into source or binaries.
 
 ## Quick comparison
 
 | Question | SKIE | KMP-NativeCoroutines |
 | --- | --- | --- |
-| Typical Swift shape | `StateFlow` as an async sequence with value access | Generated `NativeFlow` callback or async wrappers |
-| Shortest bridge syntax | Automatic lazy discovery | `KMPNativeObservable` canonical flow |
-| Runtime getter interception | Used by automatic mode | No |
-| Explicit typed path available | Yes | Yes |
-| Best fit | Teams already standardizing on SKIE | Teams already generating NativeCoroutines APIs |
+| Typical Swift shape | Typed `AsyncSequence` with synchronous StateFlow value access | Generated `NativeFlow` callback or async wrapper |
+| Bridge product | `KMPObservableBridgeSKIE` | `KMPObservableBridgeNative` |
+| Configuration | Explicit macro fields or wrapper key paths | Explicit NativeFlow key path |
+| Field-level dependency metadata | Yes, for macro-configured StateFlows | Global unless a custom keyed adapter provides metadata |
+| Runtime reflection | None | None |
+| Best fit | Teams already using SKIE | Teams already generating NativeCoroutines APIs |
 
-Neither choice is universally better. Prefer the tool already present in the
+Neither exporter is universally better. Prefer the one already validated in the
 application unless a measured limitation justifies migration.
 
-## SKIE: shortest SwiftUI declaration
+## SKIE
 
-For compatible generated frameworks:
+Declare current-value interoperability once in the application module:
 
 ```swift
-@KMPStateObject
-private var profile = ProfileViewModel()
+import shared
+import KMPObservableBridgeSKIE
+
+extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
 ```
 
-KMPObservableBridge lazily inspects naturally accessed Kotlin getters. When a
-returned value conforms to that framework's exported StateFlow protocol, the
-bridge starts the matching SKIE iterator.
-
-This removes per-property registration, but it relies on generated runtime
-details. Debug builds log unavailable compatibility, successful getter
-discovery, and incompatible iterator method shapes.
-
-Use an explicit key path when deterministic observation is more important than
-the shortest declaration:
+Then declare the StateFlows that form a ViewModel’s observation plan:
 
 ```swift
-@KMPStateObject(
-    wrappedValue: ProfileViewModel(),
-    state: \.state
+@KMPObservable(
+    ProfileViewModel.self,
+    fields: \.profileState, \.permissionsState
 )
-private var profile
+extension ProfileViewModel: @retroactive KMPStaticallyObservable {}
 ```
 
-## KMP-NativeCoroutines: explicit generated contract
+The macro expands these compiler-checked key paths into the static observation
+plan. Swift macros cannot inspect members of an imported Kotlin type, so fields
+are intentionally explicit. The bridge does not use Objective-C discovery,
+getter interception, or generated application source.
 
-A model can expose one NativeFlow representing its canonical invalidation
-stream:
-
-```swift
-extension ProfileViewModel: KMPNativeObservable {
-    public var kmpObservationFlow: KMPNativeFlow<
-        ProfileState,
-        Error,
-        KotlinUnit
-    > {
-        profileStateFlow
-    }
-}
-```
-
-Then the same wrapper syntax selects NativeFlow before considering SKIE:
+Own or observe the model normally:
 
 ```swift
 @KMPStateObject
 private var profile = ProfileViewModel()
+
+Text($profile.profileState.title)
 ```
 
-This route performs no Objective-C method interception or SKIE iterator lookup.
-Each emission enters the common main-actor, failure-policy, cancellation, and
-coalescing store.
+Use an explicit wrapper adapter when a conformance should remain local to one
+use site:
 
-The exact exported generic types depend on the generated framework. Follow the
-generated NativeFlow signature rather than copying placeholder names from an
-example.
+```swift
+@KMPStateObject(state: \.profileState)
+private var profile = ProfileViewModel()
+```
 
-## Performance considerations
+## KMP-NativeCoroutines
 
-For SKIE automatic discovery:
+Link `KMPObservableBridgeNative` and observe the generated NativeFlow explicitly:
 
-- compatible and incompatible runtime descriptors are cached per model class;
-- eligible getters perform a small return-value protocol check;
-- repeated reads of the same StateFlow identity are deduplicated;
-- one active iterator is kept per discovered getter and model.
+```swift
+import shared
+import KMPObservableBridgeNative
+
+@KMPStateObject(
+    state: \.kmpObservationFlow,
+    updatePolicy: .immediate
+)
+private var example = BridgeExampleViewModel()
+```
+
+The NativeFlow is the notification and cancellation source. Render the
+separately exported current property:
+
+```swift
+Text(example.nativeMessageValue)
+```
+
+The exact generated property and generic types depend on the Kotlin declaration
+and NativeCoroutines version. Use the generated Swift interface as the contract.
+
+## Performance and rendering behavior
+
+For macro-configured SKIE:
+
+- One static hub shares the model’s configured collectors across wrappers.
+- Consecutive equal StateFlow values are suppressed.
+- Projected field reads can register field-level dependencies on
+  Observation-capable platforms.
+- Direct model reads retain global invalidation semantics.
 
 For NativeFlow:
 
-- there is no getter interception;
-- the primary cost is the Kotlin-to-Swift callback for each emission;
-- cancellation propagates through the returned NativeFlow cancellation handle.
+- The Kotlin-to-Swift callback crosses to `MainActor` once.
+- Cancellation propagates through the generated cancellation handle.
+- The adapter invalidates globally unless it supplies a known dependency key.
 
-For both routes, SwiftUI rendering usually costs more than bridge dispatch.
-The default `.coalesced` policy batches bursts arriving in one main-actor turn.
-Use `.immediate` only when every emission must produce a distinct invalidation.
+For both routes, `.coalesced` unions changes in one main-actor turn.
+`.immediate` preserves every accepted emission when that semantic is required.
+Neither route duplicates Kotlin business state in Swift.
 
 ## Selection guide
 
-Choose automatic SKIE when:
+Choose SKIE when:
 
 - the application already uses and tests SKIE;
-- minimum declaration ceremony is important;
-- the Kotlin/SKIE version combination is pinned in CI;
-- lazy observation matches the view's access pattern.
-
-Choose explicit SKIE key paths when:
-
-- observation topology must be obvious in code;
-- only selected flows should invalidate a screen;
-- maximum compile-time guidance is preferred.
+- synchronous StateFlow value access is useful to rendering;
+- explicit macro fields fit the project’s feature organization;
+- field-aware Observation is valuable.
 
 Choose KMP-NativeCoroutines when:
 
-- it is already the application's coroutine export strategy;
-- a canonical NativeFlow can represent screen invalidation;
-- avoiding runtime getter interception is a priority.
+- it is already the application’s coroutine export strategy;
+- a generated NativeFlow provides the desired invalidation contract;
+- state is exposed separately through a current-value property.
 
-Choose a custom adapter when the application already has a stable callback,
-Combine, or platform-specific observation contract.
+Choose callbacks, Combine, or a custom adapter when the application already has
+a stable platform-specific contract that is easier to validate than migrating
+exporters.
 
-## Validate the decision
+## Validate either decision
 
-Whichever route you choose, test:
+Test:
 
-1. initial state replay;
-2. a later Kotlin emission;
-3. background delivery to the main actor;
-4. model identity replacement;
-5. cancellation when the view/store disappears;
-6. ViewModel disposal only by its owner.
+1. Initial value rendering.
+2. A later Kotlin emission.
+3. Foreign-thread delivery to `MainActor`.
+4. Model identity replacement and stale-emission suppression.
+5. Cancellation when the wrapper’s identity ends.
+6. Disposal by owners only.
+7. Multiple wrappers and their expected collector count.
+8. Equal emissions and body-evaluation counts.
 
-The included DailyPulse application builds a generated Kotlin framework with
-both SKIE and KMP-NativeCoroutines examples.
+The DailyPulse example builds a real Kotlin framework and demonstrates both
+integration products.

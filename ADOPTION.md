@@ -1,5 +1,8 @@
 # Adoption Playbook
 
+The objective is not a short-lived star count. It is a measurable path from a
+repository visit to a correct integration that teams keep after evaluating it.
+
 ## First adopters
 
 Offer hands-on help integrating one non-critical screen. Ask each team for:
@@ -15,6 +18,17 @@ Suggested message:
 > state. I’m looking for two teams willing to try it on one screen. I’ll help
 > with the integration and lifecycle review. In return, I’d value candid API
 > feedback; public attribution is entirely optional.
+
+Choose pilot screens that:
+
+- Are non-critical and can be removed without a migration.
+- Have one clearly owned ViewModel and one or two observable fields.
+- Already use SKIE or KMP-NativeCoroutines successfully.
+- Have tests or a deterministic interaction that exposes lifecycle mistakes.
+
+For each pilot, record the time required to install, configure, render the first
+value, and verify cancellation. Turn repeated confusion into documentation or a
+compile-time diagnostic.
 
 ## Where to ask
 
@@ -39,16 +53,32 @@ For every consenting adopter, record:
 
 Never imply production use without confirmation from the application owner.
 
-## Success measures
+Before publishing a name, logo, quotation, benchmark, or architecture detail,
+obtain explicit written permission for that specific material. An anonymous
+technical case study is a valid alternative.
+
+## Adoption funnel
 
 Review monthly:
 
-- README visits to package-resolution or clone activity
-- Swift Package Index builds
+- Unique repository visitors and their referral sources
+- Clones and package-resolution activity
 - Unique cloners and dependent repositories
 - Discussions that reach a working integration
+- Evaluations that produce a rendered screen
+- Evaluations that remain after one release cycle
 - Time to first maintainer response
-- Retention of known adopters after one release cycle
 
 Stars are useful discovery signals, but successful integrations and retained
 users are the primary measures.
+
+## Evidence worth publishing
+
+- A reproducible before/after adapter diff.
+- Notification and body-evaluation counts for a real screen.
+- Collector counts with parent, child, and environment wrappers.
+- Cancellation behavior after navigation and model rebinding.
+- Toolchain and framework versions for every benchmark.
+- Limitations discovered during adoption and how they were resolved.
+
+Never publish a synthetic benchmark as proof of application-level performance.

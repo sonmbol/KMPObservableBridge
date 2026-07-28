@@ -1,157 +1,170 @@
 # KMPObservableBridge Launch Kit
 
-Attach `Assets/social-preview.png` when announcing the release.
+Use [`Assets/social-preview.png`](Assets/social-preview.png) for link previews
+and [`Assets/demo.gif`](Assets/demo.gif) when the channel supports animation.
+Keep every announcement technical, specific, and open to critical feedback.
 
-## Demo video storyboard
+## Core message
 
-Record one 20–40 second clip in a 16:9 layout:
+KMPObservableBridge 1.1.0 lets SwiftUI observe Kotlin Multiplatform ViewModels
+without duplicating business state in a Swift adapter. Kotlin remains the
+source of truth, while SwiftUI gets explicit ownership, lifecycle-safe
+collection, field-level Observation on supported platforms, and native
+bindings for writable exports.
 
-1. Show a Kotlin `StateFlow` changing in the DailyPulse ViewModel.
-2. Show the SwiftUI screen updating in the simulator.
-3. Show the removed Swift adapter boilerplate.
-4. End on:
+The package:
 
-   ```swift
-   @KMPStateObject
-   private var profile = ProfileViewModel()
-   ```
+- Supports SKIE, KMP-NativeCoroutines, callbacks, Combine, and custom adapters.
+- Requires no Kotlin superclass or runtime dependency in the Swift package.
+- Uses explicit, compiler-checked macro fields instead of runtime reflection.
+- Shares macro-configured collectors across wrappers for the same model.
+- Supports iOS 15, macOS 11, tvOS 14, watchOS 7, and Swift 5.9 or later.
 
-Use the caption: **Kotlin State. Native SwiftUI. No duplicate adapter
-ViewModel.**
+Repository: https://github.com/sonmbol/KMPObservableBridge
 
-Export an MP4 for LinkedIn, X, Reddit, and Discord, plus a short GIF for the
-README and GitHub Release.
+Release: https://github.com/sonmbol/KMPObservableBridge/releases/tag/1.1.0
 
-## Short post
+## Short launch post
 
-KMPObservableBridge 1.0.1 is available: a lightweight, architecture-neutral way
-to observe Kotlin Multiplatform state directly from SwiftUI.
+KMPObservableBridge 1.1.0 is available.
 
-It supports SKIE, KMP-NativeCoroutines, callbacks, Combine, and custom adapters
-without requiring a Kotlin superclass, annotation, compiler plugin, generated
-registration, or third-party runtime dependency in the Swift package.
-It includes SwiftUI-style owned, observed, environment, and child ViewModels,
-deterministic cancellation, rebinding, and coalesced updates.
+It connects Kotlin Multiplatform ViewModels to SwiftUI without a duplicate
+Swift adapter or a Kotlin-side framework dependency. Kotlin stays authoritative;
+SwiftUI gets familiar ownership wrappers, deterministic cancellation, rebinding,
+and field-level dependency tracking for explicitly selected SKIE StateFlows.
+
+It also supports KMP-NativeCoroutines, callbacks, Combine, and custom adapters.
+The repository includes a real Gradle → SKIE → Xcode example, benchmarks, and
+strict-concurrency tests.
+
+I’m looking for two teams willing to evaluate it on one non-critical screen.
+Critical feedback is welcome:
 
 https://github.com/sonmbol/KMPObservableBridge
 
 #KotlinMultiplatform #KMP #SwiftUI #iOSDev #Kotlin
 
-## Reddit
+## LinkedIn / X
 
-**Title:** KMPObservableBridge 1.0.1 — observe Kotlin state directly in SwiftUI
+Using a Kotlin Multiplatform ViewModel in SwiftUI should not require duplicating
+its state in a Swift adapter.
 
-I released KMPObservableBridge, a dependency-light Swift package for connecting
-Kotlin Multiplatform state to SwiftUI without duplicating state in a Swift
-adapter ViewModel.
+```swift
+@KMPObservable(
+    ArticleViewModel.self,
+    fields: \.articleState
+)
+extension ArticleViewModel: @retroactive KMPStaticallyObservable {}
 
-The goal is architecture neutrality: no required Kotlin base class, annotation,
-compiler plugin, or runtime. The same ownership model works with SKIE,
-KMP-NativeCoroutines, generated async sequences, callbacks, Combine, and custom
-adapters.
+@KMPStateObject
+private var viewModel = ArticleViewModel()
+```
 
-The 1.0 API mirrors SwiftUI concepts with `KMPStateObject`,
-`KMPObservedObject`, `KMPEnvironmentObject`, and `KMPChildObject`. It handles
-cancellation, model rebinding, stale-emission suppression, background
-callbacks, observation failures, and hot-stream update coalescing.
+Kotlin remains the source of truth. SwiftUI receives explicit ownership,
+field-level dependency tracking, deterministic cancellation, and native
+bindings for writable exports.
 
-Repository, documentation, examples, and tests:
+KMPObservableBridge 1.1.0 supports SKIE, KMP-NativeCoroutines, callbacks,
+Combine, and custom adapters:
+
 https://github.com/sonmbol/KMPObservableBridge
 
-How does your project currently connect StateFlow to SwiftUI: a manual adapter,
-SKIE, KMP-NativeCoroutines, or something else? I would especially value
-feedback on API ergonomics, Swift concurrency behavior, and real-world KMP
-framework integrations.
+How are you connecting StateFlow to SwiftUI today?
 
-## Kotlin Slack
+#KotlinMultiplatform #SwiftUI #KMP #iOSDev
 
-I released KMPObservableBridge 1.0, a SwiftUI bridge for KMP state that works
-with SKIE, KMP-NativeCoroutines, callbacks, Combine, and custom adapters without
-a Kotlin-side dependency or required ViewModel base class. It follows
-SwiftUI-style ownership and includes environment/child ViewModels,
-deterministic cancellation and rebinding, failure policies, and coalesced
-updates. Feedback is welcome:
+## Reddit
+
+**Title:** KMPObservableBridge 1.1.0 — field-aware Kotlin state observation for SwiftUI
+
+I built KMPObservableBridge to remove the duplicate Swift adapter ViewModel that
+often appears between Kotlin state and SwiftUI.
+
+The bridge keeps Kotlin as the only business-state store. For SKIE, an attached
+macro creates a compile-time-checked observation plan from explicit StateFlow
+key paths. On Observation-capable platforms, projected field reads can track a
+specific field; direct model reads retain safe global invalidation behavior.
+Older OS versions fall back to `ObservableObject`.
+
+The package also supports KMP-NativeCoroutines, callbacks, Combine, and custom
+adapters. Ownership is explicit through SwiftUI-style wrappers, collectors are
+cancelled deterministically, stale emissions are suppressed after rebinding,
+and macro-configured wrappers share collection for the same model.
+
+There is no Kotlin base class, runtime reflection, or duplicated Swift value
+store. The repository includes tests, benchmarks, DocC, and a real
+Gradle → SKIE → Xcode example.
+
+Repository and demo:
+https://github.com/sonmbol/KMPObservableBridge
+
+I would value critical feedback on the API, Observation semantics, and
+cross-language lifecycle model. I’m also offering hands-on help to two teams
+that want to evaluate one non-critical screen.
+
+## Kotlin Slack / community Discord
+
+I released KMPObservableBridge 1.1.0, a SwiftUI bridge for KMP ViewModels that
+keeps Kotlin state authoritative. It supports SKIE with explicit,
+compiler-checked fields, plus KMP-NativeCoroutines, callbacks, Combine, and
+custom adapters. There is no required Kotlin superclass or Swift-side state
+copy. The project focuses on SwiftUI ownership, field-aware invalidation,
+deterministic cancellation, and safe rebinding.
+
+I’m looking for two teams to evaluate one non-critical screen, and I’m happy to
+help with the lifecycle review:
 https://github.com/sonmbol/KMPObservableBridge
 
 ## Swift Forums
 
-**Title:** KMPObservableBridge: architecture-neutral Kotlin state observation for SwiftUI
+**Title:** KMPObservableBridge: field-aware Kotlin state observation for SwiftUI
 
-KMPObservableBridge lets SwiftUI observe state exposed by Kotlin Multiplatform
-models while Kotlin remains the source of truth. Its API models SwiftUI
-ownership instead of introducing a framework-owned Kotlin ViewModel hierarchy.
+KMPObservableBridge lets SwiftUI observe exported Kotlin Multiplatform models
+while Kotlin remains the authoritative state store.
 
-The package supports async sequences, callbacks, Combine publishers, and custom
-adapters, with optional convenience for SKIE and KMP-NativeCoroutines. The core
-depends only on Apple system frameworks and supports iOS 14, macOS 11, tvOS 14,
-and watchOS 7.
+The core design uses SwiftUI-style ownership wrappers and explicit observation
+adapters. The SKIE integration uses an attached macro with compiler-checked
+StateFlow key paths. Projected field reads participate in field-level
+Observation on supported Apple platforms, while direct model access remains a
+safe global dependency. iOS 15/16 retain `ObservableObject` invalidation.
 
-The implementation focuses on actor-safe UI invalidation, deterministic
-cancellation and disposal, identity-aware rebinding, stale-emission
-suppression, and coalescing for hot streams. Review from developers experienced
-with Swift concurrency and cross-language ownership is very welcome.
+The package also supports KMP-NativeCoroutines, callbacks, Combine, and custom
+adapters. It does not require a Kotlin base class, Objective-C reflection, or a
+duplicated Swift value cache.
 
+Review from developers experienced with Swift Observation, concurrency,
+Kotlin/Native ownership, and macro APIs would be especially useful:
 https://github.com/sonmbol/KMPObservableBridge
-
-## LinkedIn / X
-
-Using Kotlin Multiplatform ViewModels in SwiftUI often creates a second Swift
-adapter ViewModel for every screen.
-
-KMPObservableBridge removes that layer:
-
-```swift
-@KMPStateObject
-private var profile = ProfileViewModel()
-```
-
-Kotlin remains the source of truth. SwiftUI keeps native ownership,
-invalidation, cancellation, rebinding, and lifecycle behavior. It supports
-SKIE, KMP-NativeCoroutines, explicit async sequences, callbacks, and Combine.
-
-How are you connecting StateFlow to SwiftUI today?
-
-https://github.com/sonmbol/KMPObservableBridge
-
-#KotlinMultiplatform #KMP #SwiftUI #iOSDev
-
-## Directory submission
-
-**Name:** KMPObservableBridge
-
-**URL:** https://github.com/sonmbol/KMPObservableBridge
-
-**Description:** A lightweight, architecture-neutral SwiftUI observation bridge
-for Kotlin Multiplatform state. Supports StateFlow through SKIE or
-KMP-NativeCoroutines, generated async sequences, callbacks, Combine, and custom
-adapters without a required Kotlin superclass, annotation, plugin, or runtime.
-
-**Keywords:** Kotlin Multiplatform, KMP, KMM, SwiftUI, StateFlow, coroutines,
-Kotlin/Native, SKIE, KMP-NativeCoroutines, Observation, MVVM, MVI
 
 ## Newsletter pitch
 
-**Subject:** Project submission: KMPObservableBridge 1.0.1
+**Subject:** Project submission: KMPObservableBridge 1.1.0
 
-KMPObservableBridge is a Swift package that lets SwiftUI observe real Kotlin
-Multiplatform ViewModels without a duplicate Swift adapter per screen. It
-supports automatic SKIE StateFlow discovery, KMP-NativeCoroutines, typed async
-sequence key paths, callbacks, and Combine while keeping lifecycle ownership
-explicit. The repository includes strict-concurrency tests, Apple-platform CI,
-DocC, benchmarks, and a generated Kotlin/SKIE example application.
+KMPObservableBridge is a Swift package for connecting Kotlin Multiplatform
+ViewModels to SwiftUI without duplicating business state in a Swift adapter.
+It provides SwiftUI-style ownership, explicit compiler-checked SKIE fields,
+field-level Observation on supported platforms, deterministic cancellation,
+and safe model rebinding. Separate integrations support SKIE and
+KMP-NativeCoroutines, while the core also accepts callbacks, Combine, and
+custom adapters. The repository includes a real Gradle → SKIE → Xcode example,
+strict-concurrency tests, benchmarks, DocC, and an architectural evaluation
+guide.
 
 Repository: https://github.com/sonmbol/KMPObservableBridge
 
-Release: https://github.com/sonmbol/KMPObservableBridge/releases/tag/1.0.1
+Release: https://github.com/sonmbol/KMPObservableBridge/releases/tag/1.1.0
 
-## Seven-day publishing schedule
+## Thirty-day publishing plan
 
-| Day | Channel | Asset | Goal |
-| --- | --- | --- | --- |
-| 1 | GitHub Release | Release notes + demo | Give visitors a stable landing page |
-| 2 | Kotlin Slack / KMP Discord | Short post | Ask about existing StateFlow patterns |
-| 3 | Reddit | Technical post + demo | Invite API and integration feedback |
-| 4 | GitHub Discussions | Integration thread | Help one real ViewModel integration |
-| 5 | Swift Forums | Architecture post | Reach Swift concurrency reviewers |
-| 6 | Five maintainers | Personalized message | Recruit first adopters |
-| 7 | GitHub Traffic | Referrals and clones | Refine the best-performing message |
+| Timing | Channel | Goal |
+| --- | --- | --- |
+| Day 1 | GitHub Discussion | Explain 1.1.0 and invite technical review |
+| Day 2–3 | Kotlin Slack / KMP Discord | Ask how teams currently bridge StateFlow |
+| Day 4–5 | Reddit | Share the architecture and demo; request criticism |
+| Week 2 | Swift Forums | Seek Observation and concurrency review |
+| Week 2 | Five personalized maintainer messages | Recruit two pilot integrations |
+| Week 3 | Issue or Discussion follow-ups | Publish answers and integration findings |
+| Week 4 | GitHub traffic and adopter review | Refine onboarding using measured drop-off |
+
+Do not send bulk unsolicited messages, manufacture testimonials, or claim
+production adoption without the application owner’s explicit permission.
