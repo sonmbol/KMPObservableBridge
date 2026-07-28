@@ -11,7 +11,7 @@ ViewModels, SKIE, KMP-NativeCoroutines, and SwiftUI.
 
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white)](https://swift.org)
 [![Platforms](https://img.shields.io/badge/Platforms-iOS%2015%2B%20%7C%20macOS%2011%2B-blue)](#requirements)
-[![CI](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/ci.yml/badge.svg)](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/ci.yml)
+[![CI](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/swift.yml/badge.svg)](https://github.com/sonmbol/KMPObservableBridge/actions/workflows/swift.yml)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 </div>
@@ -31,6 +31,10 @@ var body: some View {
 No shadow Swift ViewModel. No copied business state. No runtime reflection,
 swizzling, selector discovery, or generated source file.
 
+**Evaluate it in five minutes:** [install the package](#quick-start), explore the
+[DailyPulse app](Examples/DailyPulse/iosApp), or read
+[when to choose this bridge](Docs/Evaluating-KMPObservableBridge.md).
+
 ## Why KMPObservableBridge?
 
 Kotlin remains the authoritative source of truth while SwiftUI receives native
@@ -40,7 +44,7 @@ values, bindings, ownership semantics, and precise dependencies.
 | --- | --- |
 | Native ownership | `@KMPStateObject`, `@KMPObservedObject`, and `@KMPEnvironmentObject` mirror SwiftUI’s ownership language |
 | Field-level dependencies | On iOS 17+, only views that read an emitted projected field are invalidated |
-| Shared collection | Multiple SwiftUI wrappers share one collector set per Kotlin model |
+| Shared collection | Macro-configured wrappers share one static collector set per Kotlin model |
 | Native projection | `$viewModel.state` returns the current Swift value without exposing `.value` |
 | Safe bindings | Writable Kotlin exports produce `Binding`; read-only StateFlows remain read-only |
 | Deterministic lifetime | Collection, callback, Combine, and NativeFlow cancellation follow SwiftUI identity storage |
@@ -357,7 +361,7 @@ All manifests expose the same products and public API.
 
 ## Validation
 
-CI treats these as release-blocking:
+Release validation covers:
 
 - Unit, lifecycle, cancellation, macro, and dependency-granularity tests
 - Strict concurrency with warnings as errors
@@ -394,6 +398,10 @@ xcodebuild build \
 - [DailyPulse integration guide](Examples/DailyPulse/iosApp/README.md)
 - [DocC catalog](Sources/KMPObservableBridge/Documentation/KMPObservableBridge.docc/KMPObservableBridge.md)
 - [Benchmark methodology](Benchmarks/RESULTS.md)
+- [Evaluation, comparison, and migration guide](Docs/Evaluating-KMPObservableBridge.md)
+- [Adoption playbook](ADOPTION.md)
+- [Contributing](CONTRIBUTING.md)
+- [Architecture discussion](https://github.com/sonmbol/KMPObservableBridge/discussions/16)
 - [Issue tracker](https://github.com/sonmbol/KMPObservableBridge/issues)
 
 ## License
