@@ -6,7 +6,8 @@ public extension KMPState {
             KMPNativeFlow<Output, Failure, Unit>
         >
     ) -> Self {
-        Self { viewModel, notify, reportError in
+        Self(dependency: .field(keyPath)) {
+            viewModel, notify, reportError in
             let flow = viewModel[keyPath: keyPath]
             let cancel = flow(
                 { _, next, unit in
@@ -55,6 +56,18 @@ public extension KMPNativeObservable {
         kmpObservationPlan.startObservation(
             on: model,
             notify: notify,
+            reportError: reportError
+        )
+    }
+
+    static func kmpStartObservation(
+        on model: Self,
+        notifyDependency: @escaping KMPObservationDependencyNotify,
+        reportError: @escaping KMPObservationErrorHandler
+    ) -> KMPObservation {
+        kmpObservationPlan.observeDependencies(
+            on: model,
+            notifyDependency: notifyDependency,
             reportError: reportError
         )
     }

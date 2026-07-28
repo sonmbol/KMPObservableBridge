@@ -81,6 +81,30 @@ final class KMPObservableBridgeTests: XCTestCase {
         }
     }
 
+    private final class FieldModel: KMPStaticallyObservable {
+        let first = ValueStream(0)
+        let second = ValueStream(0)
+
+        static var kmpObservationPlan: KMPObservationPlan<FieldModel> {
+            KMPObservationPlan(
+                .equatable(\.first),
+                .equatable(\.second)
+            )
+        }
+
+        static func kmpStartObservation(
+            on model: FieldModel,
+            notify: @escaping KMPObservationNotify,
+            reportError: @escaping KMPObservationErrorHandler
+        ) -> KMPObservation {
+            kmpObservationPlan.startObservation(
+                on: model,
+                notify: notify,
+                reportError: reportError
+            )
+        }
+    }
+
     private final class DisposableModel: KMPDisposable {
         let state = AsyncStream<Int> { _ in }
         private(set) var disposalCount = 0
@@ -92,6 +116,21 @@ final class KMPObservableBridgeTests: XCTestCase {
 
     private enum TestError: Error, Equatable {
         case failed
+    }
+
+    private final class LockedCounter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var storage = 0
+
+        var value: Int {
+            lock.withLock { storage }
+        }
+
+        func increment() {
+            lock.withLock {
+                storage += 1
+            }
+        }
     }
 
     private final class NativeFlowModel: KMPNativeObservable {
@@ -882,6 +921,118 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         model.subject.send(1)
 
+        await fulfillment(of: [changed], timeout: 1)
+    }
+
+    @available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
+    func testModernObservationTracksProjectedFieldsIndependently() async {
+        let model = FieldModel()
+        let changed = expectation(description: "First field invalidated")
+        let invalidationCount = LockedCounter()
+        let store = KMPViewModelStore(
+            model,
+            source: .staticPlan(FieldModel.kmpObservationPlan),
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false
+        )
+
+        withObservationTracking {
+            _ = store.first
+        } onChange: {
+            invalidationCount.increment()
+            changed.fulfill()
+        }
+
+        model.second.update(1)
+        await settleMainActorTasks()
+        XCTAssertEqual(invalidationCount.value, 0)
+
+        model.first.update(1)
+        await fulfillment(of: [changed], timeout: 1)
+        XCTAssertEqual(invalidationCount.value, 1)
+    }
+
+    @available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
+    func testGlobalObservationInvalidatesForEveryField() async {
+        let model = FieldModel()
+        let changed = expectation(description: "Global dependency invalidated")
+        let store = KMPViewModelStore(
+            model,
+            source: .staticPlan(FieldModel.kmpObservationPlan),
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false
+        )
+
+        withObservationTracking {
+            _ = store.value
+        } onChange: {
+            changed.fulfill()
+        }
+
+        model.second.update(1)
+        await fulfillment(of: [changed], timeout: 1)
+    }
+
+    @available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
+    func testCoalescingPreservesIndependentFieldChanges() async {
+        let model = FieldModel()
+        let firstChanged = expectation(description: "First invalidated")
+        let secondChanged = expectation(description: "Second invalidated")
+        let store = KMPViewModelStore(
+            model,
+            source: .staticPlan(FieldModel.kmpObservationPlan),
+            updatePolicy: .coalesced,
+            failurePolicy: .ignore,
+            ownsModel: false
+        )
+
+        withObservationTracking {
+            _ = store.first
+        } onChange: {
+            firstChanged.fulfill()
+        }
+        withObservationTracking {
+            _ = store.second
+        } onChange: {
+            secondChanged.fulfill()
+        }
+
+        model.first.update(1)
+        model.second.update(1)
+
+        await fulfillment(
+            of: [firstChanged, secondChanged],
+            timeout: 1
+        )
+    }
+
+    @available(iOS 17, macOS 14, tvOS 17, watchOS 10, *)
+    func testCustomGlobalAdapterInvalidatesProjectedFields() async {
+        let model = FieldModel()
+        var notify: KMPObservationNotify?
+        let changed = expectation(description: "Projected field invalidated")
+        let store = KMPViewModelStore(
+            model,
+            states: [
+                .custom { _, callback, _ in
+                    notify = callback
+                    return .empty
+                },
+            ],
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false
+        )
+
+        withObservationTracking {
+            _ = store.first
+        } onChange: {
+            changed.fulfill()
+        }
+
+        notify?()
         await fulfillment(of: [changed], timeout: 1)
     }
 

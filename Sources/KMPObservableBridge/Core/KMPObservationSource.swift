@@ -5,6 +5,13 @@
 @MainActor
 enum KMPObservationSource<ViewModel: AnyObject> {
     case staticPlan(KMPObservationPlan<ViewModel>)
+    case keyed(
+        @MainActor (
+            ViewModel,
+            @escaping KMPObservationDependencyNotify,
+            @escaping KMPObservationErrorHandler
+        ) -> KMPObservation
+    )
     case explicit([KMPState<ViewModel>])
 }
 
@@ -12,13 +19,11 @@ enum KMPObservationSource<ViewModel: AnyObject> {
 func kmpStaticObservationSource<ViewModel: KMPStaticallyObservable>(
     for _: ViewModel.Type
 ) -> KMPObservationSource<ViewModel> {
-    .explicit([
-        .custom { model, notify, reportError in
-            ViewModel.kmpStartObservation(
-                on: model,
-                notify: notify,
-                reportError: reportError
-            )
-        },
-    ])
+    .keyed { model, notifyDependency, reportError in
+        ViewModel.kmpStartObservation(
+            on: model,
+            notifyDependency: notifyDependency,
+            reportError: reportError
+        )
+    }
 }

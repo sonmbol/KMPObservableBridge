@@ -21,6 +21,12 @@ Explicit `state:`, `states:`, NativeFlow, callback, Combine, and custom
 Hubs are shared per model identity, discard equal consecutive state, and
 cancel collection after the last SwiftUI identity releases its lease.
 
+On Observation-capable systems, each key-path-backed projected state has a
+separate dependency. Reading `$profile.profileState` does not subscribe that
+view evaluation to unrelated fields. Direct model access and adapters without
+a key path intentionally use a global dependency. Earlier systems retain the
+`ObservableObject` fallback.
+
 ## Topics
 
 ### Ownership

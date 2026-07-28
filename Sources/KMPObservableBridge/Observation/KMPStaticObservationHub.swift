@@ -2,7 +2,7 @@
 @MainActor
 final class KMPStaticObservationHub<Model: AnyObject> {
     private struct Listener {
-        let notify: KMPState<Model>.Notify
+        let notify: KMPDependencyNotify
         let reportError: KMPState<Model>.ReportError
     }
 
@@ -36,7 +36,7 @@ final class KMPStaticObservationHub<Model: AnyObject> {
     }
 
     func addListener(
-        notify: @escaping KMPState<Model>.Notify,
+        notify: @escaping KMPDependencyNotify,
         reportError: @escaping KMPState<Model>.ReportError
     ) -> KMPObservation {
         let id = makeListenerID()
@@ -65,7 +65,7 @@ final class KMPStaticObservationHub<Model: AnyObject> {
             state.observe(
                 model,
                 { @MainActor [weak self] in
-                    self?.broadcastNotification()
+                    self?.broadcastNotification(state.dependency)
                 },
                 { @MainActor [weak self] error in
                     self?.broadcast(error)
@@ -74,10 +74,12 @@ final class KMPStaticObservationHub<Model: AnyObject> {
         }
     }
 
-    private func broadcastNotification() {
+    private func broadcastNotification(
+        _ dependency: KMPObservationDependency
+    ) {
         withBroadcast {
             for listener in listeners.values {
-                listener.notify()
+                listener.notify(dependency)
             }
         }
     }

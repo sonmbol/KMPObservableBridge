@@ -29,5 +29,28 @@ iosApp/
 | Combine publisher adapter | `CallbackExamples.swift` and `BridgeCallbackPublisher.swift` |
 | SKIE value reads and owned-model disposal | `SKIEStateFlowInterop.swift` and `KMPInterop.swift` |
 
+## Example architecture
+
+Each feature demonstrates the same production-friendly boundary:
+
+```text
+KMP ViewModel
+    ↓ thin bridge container
+Native Swift values + Binding + action closures
+    ↓
+Pure SwiftUI presentation
+```
+
+The container owns or observes the Kotlin model and performs synchronous value
+projection. The presentation view knows nothing about KMP, SKIE, flows,
+collectors, or cancellation. This keeps rendering code reusable and makes
+previews deterministic.
+
+Every example includes preview states for the UI it owns, including populated,
+loading, empty, callback, Combine, NativeFlow, writable binding, and dark-mode
+variants. These previews use immutable Swift fixtures and do not initialize
+Koin, allocate Kotlin ViewModels, start coroutines, collect flows, or perform
+network requests.
+
 There is no generated Swift source or build-tool plugin. Every ViewModel's
 typed observation plan is declared locally with `@KMPObservable`.

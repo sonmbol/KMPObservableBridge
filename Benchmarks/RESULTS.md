@@ -4,7 +4,7 @@ These numbers are reference measurements, not universal performance claims.
 Run the committed XCTest performance suite on your target hardware before
 making capacity decisions.
 
-## 2026-07-23 reference run
+## 2026-07-28 reference run
 
 | Environment | Value |
 | --- | --- |
@@ -16,10 +16,11 @@ making capacity decisions.
 
 | Scenario | Work per measured iteration | Mean | Relative standard deviation |
 | --- | ---: | ---: | ---: |
-| Immediate emissions | 10,000 publisher emissions | 0.007 s | 18.198% |
-| Store lifecycle | 1,000 creation/teardown cycles | 0.004 s | 14.365% |
+| Immediate emissions | 10,000 publisher emissions | 0.007 s | 28.199% |
+| Store lifecycle | 1,000 creation/teardown cycles | 0.005 s | 18.604% |
+| Shared static setup | 1,000 setup/teardown cycles | 0.007 s | 28.158% |
 
-The full XCTest run completed two performance tests with zero failures.
+The full XCTest run completed three performance tests with zero failures.
 Variance includes local machine scheduling and should be reduced with dedicated
 CI hardware before establishing regression thresholds.
 

@@ -1,37 +1,33 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 
 import PackageDescription
 import CompilerPluginSupport
 
-let package = Package(
-    name: "KMPObservableBridge",
-    platforms: [
-        .iOS(.v15),
-        .macOS(.v11),
-        .tvOS(.v14),
-        .watchOS(.v7),
-    ],
-    products: [
-        .library(
-            name: "KMPObservableBridge",
-            targets: ["KMPObservableBridge"]
-        ),
-        .library(
-            name: "KMPObservableBridgeSKIE",
-            targets: ["KMPObservableBridgeSKIE"]
-        ),
-        .library(
-            name: "KMPObservableBridgeNative",
-            targets: ["KMPObservableBridgeNative"]
-        ),
-    ],
-    dependencies: [
-        .package(
-            url: "https://github.com/swiftlang/swift-syntax.git",
-            exact: "509.1.1"
-        ),
-    ],
-    targets: [
+let package = makePackage(swiftSyntaxVersion: "600.0.1")
+
+private func makePackage(swiftSyntaxVersion: Version) -> Package {
+    Package(
+        name: "KMPObservableBridge",
+        platforms: [
+            .iOS(.v15), .macOS(.v11), .tvOS(.v14), .watchOS(.v7),
+        ],
+        products: [
+            .library(name: "KMPObservableBridge", targets: ["KMPObservableBridge"]),
+            .library(name: "KMPObservableBridgeSKIE", targets: ["KMPObservableBridgeSKIE"]),
+            .library(name: "KMPObservableBridgeNative", targets: ["KMPObservableBridgeNative"]),
+        ],
+        dependencies: [
+            .package(
+                url: "https://github.com/swiftlang/swift-syntax.git",
+                exact: swiftSyntaxVersion
+            ),
+        ],
+        targets: makeTargets()
+    )
+}
+
+private func makeTargets() -> [Target] {
+    [
         .target(
             name: "KMPObservableBridge",
             dependencies: ["KMPObservableBridgeMacros"]
@@ -68,7 +64,7 @@ let package = Package(
                     name: "SwiftSyntaxMacrosTestSupport",
                     package: "swift-syntax"
                 ),
-            ],
+            ]
         ),
     ]
-)
+}
