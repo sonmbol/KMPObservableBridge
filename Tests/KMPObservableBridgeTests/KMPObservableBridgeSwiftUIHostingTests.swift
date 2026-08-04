@@ -3,12 +3,6 @@ import SwiftUI
 import XCTest
 @testable import KMPObservableBridge
 
-#if os(iOS)
-import UIKit
-#elseif os(macOS)
-import AppKit
-#endif
-
 @MainActor
 final class KMPObservableBridgeSwiftUIHostingTests: XCTestCase {
     func testObservationKeepsUnrelatedHostedSubtreeStable() async throws {
@@ -36,9 +30,12 @@ final class KMPObservableBridgeSwiftUIHostingTests: XCTestCase {
         )
 
         guard supportsFieldLevelObservation else {
-            harness.removeContent()
+            await removeContent(
+                from: harness,
+                assertingTeardownOf: model
+            )
             throw XCTSkip(
-                "Field isolation requires iOS 17 or macOS 14."
+                "Field isolation requires iOS 17+ or macOS 14+."
             )
         }
 
@@ -57,6 +54,7 @@ final class KMPObservableBridgeSwiftUIHostingTests: XCTestCase {
         model.second.emit(1)
 
         await fulfillment(of: [secondRendered], timeout: 2)
+        await harness.flushPendingUpdates()
         XCTAssertEqual(
             probe.renderCount(for: .first),
             firstBaseline,
@@ -266,310 +264,6 @@ final class KMPObservableBridgeSwiftUIHostingTests: XCTestCase {
             XCTAssertEqual(signal.startedCount, 1)
             XCTAssertEqual(signal.stoppedCount, 1)
         }
-    }
-}
-
-@MainActor
-private struct HostingContext {
-    let model: HostingModel
-    let probe: HostingRenderProbe
-    let harness: AppleHostingHarness
-}
-
-private enum HostedField: Hashable {
-    case first
-    case second
-}
-
-private enum HostingObservationMode {
-    case runtime
-    case forcedFallback
-}
-
-@MainActor
-private final class HostingRenderProbe {
-    private var counts: [HostedField: Int] = [:]
-    private var nextRender: [HostedField: () -> Void] = [:]
-
-    func renderCount(for field: HostedField) -> Int {
-        counts[field, default: 0]
-    }
-
-    func onNextRender(
-        of field: HostedField,
-        perform action: @escaping () -> Void
-    ) {
-        precondition(nextRender[field] == nil)
-        nextRender[field] = action
-    }
-
-    func record(_ field: HostedField, value: Int) -> String {
-        counts[field, default: 0] += 1
-        let action = nextRender.removeValue(forKey: field)
-        action?()
-        return "\(value)"
-    }
-}
-
-private final class HostingSignal:
-    KMPValueProperty,
-    @unchecked Sendable
-{
-    private let lock = NSLock()
-    private var currentValue: Int
-    @MainActor private var observers: [UInt: KMPObservationNotify] = [:]
-    @MainActor private var nextObserverID: UInt = 0
-    @MainActor private(set) var startedCount = 0
-    @MainActor private(set) var stoppedCount = 0
-    @MainActor var onStop: (() -> Void)?
-
-    var value: Int {
-        lock.withLock {
-            currentValue
-        }
-    }
-
-    @MainActor
-    var activeObserverCount: Int {
-        observers.count
-    }
-
-    init(_ value: Int) {
-        currentValue = value
-    }
-
-    @MainActor
-    func observe(
-        _ notify: @escaping KMPObservationNotify
-    ) -> KMPObservation {
-        nextObserverID &+= 1
-        let observerID = nextObserverID
-        observers[observerID] = notify
-        startedCount += 1
-
-        return KMPObservation { [weak self] in
-            MainActor.assumeIsolated {
-                self?.removeObserver(observerID)
-            }
-        }
-    }
-
-    @MainActor
-    func emit(_ value: Int) {
-        lock.withLock {
-            currentValue = value
-        }
-        let callbacks = Array(observers.values)
-        callbacks.forEach { $0() }
-    }
-
-    @MainActor
-    private func removeObserver(_ observerID: UInt) {
-        guard observers.removeValue(forKey: observerID) != nil else {
-            return
-        }
-        stoppedCount += 1
-        onStop?()
-    }
-}
-
-@MainActor
-private final class HostingModel: KMPStaticallyObservable {
-    let first = HostingSignal(0)
-    let second = HostingSignal(0)
-    let global = HostingSignal(0)
-
-    static var kmpObservationPlan: KMPObservationPlan<HostingModel> {
-        KMPObservationPlan(
-            KMPState(dependency: .field(\HostingModel.first)) {
-                model, notify, _ in
-                model.first.observe(notify)
-            },
-            KMPState(dependency: .field(\HostingModel.second)) {
-                model, notify, _ in
-                model.second.observe(notify)
-            },
-            KMPState(dependency: .global) { model, notify, _ in
-                model.global.observe(notify)
-            }
-        )
-    }
-
-    static func kmpStartObservation(
-        on model: HostingModel,
-        notify: @escaping KMPObservationNotify,
-        reportError: @escaping KMPObservationErrorHandler
-    ) -> KMPObservation {
-        kmpObservationPlan.startObservation(
-            on: model,
-            notify: notify,
-            reportError: reportError
-        )
-    }
-
-    static func kmpStartObservation(
-        on model: HostingModel,
-        notifyDependency: @escaping KMPObservationDependencyNotify,
-        reportError: @escaping KMPObservationErrorHandler
-    ) -> KMPObservation {
-        kmpObservationPlan.observeDependencies(
-            on: model,
-            notifyDependency: notifyDependency,
-            reportError: reportError
-        )
-    }
-}
-
-@MainActor
-private struct HostingRoot: View {
-    let model: HostingModel
-    let probe: HostingRenderProbe
-    let mode: HostingObservationMode
-
-    var body: some View {
-        VStack {
-            field(.first)
-            field(.second)
-        }
-    }
-
-    @ViewBuilder
-    private func field(_ field: HostedField) -> some View {
-        switch mode {
-        case .runtime:
-            HostedProjectedField(
-                model: model,
-                field: field,
-                probe: probe
-            )
-        case .forcedFallback:
-            FallbackHostedProjectedField(
-                model: model,
-                field: field,
-                probe: probe
-            )
-        }
-    }
-}
-
-@MainActor
-private struct HostedProjectedField: View {
-    @KMPObservedObject private var model: HostingModel
-    let field: HostedField
-    let probe: HostingRenderProbe
-
-    init(
-        model: HostingModel,
-        field: HostedField,
-        probe: HostingRenderProbe
-    ) {
-        _model = KMPObservedObject(
-            model,
-            updatePolicy: .immediate,
-            failurePolicy: .ignore
-        )
-        self.field = field
-        self.probe = probe
-    }
-
-    var body: some View {
-        let value: Int
-        switch field {
-        case .first:
-            value = $model.first
-        case .second:
-            value = $model.second
-        }
-        return Text(verbatim: probe.record(field, value: value))
-    }
-}
-
-@MainActor
-private struct FallbackHostedProjectedField: View {
-    @StateObject private var storage: KMPViewModelStore<HostingModel>
-    let field: HostedField
-    let probe: HostingRenderProbe
-
-    init(
-        model: HostingModel,
-        field: HostedField,
-        probe: HostingRenderProbe
-    ) {
-        _storage = StateObject(
-            wrappedValue: KMPViewModelStore(
-                model,
-                source: .staticPlan(HostingModel.kmpObservationPlan),
-                updatePolicy: .immediate,
-                failurePolicy: .ignore,
-                ownsModel: false,
-                modernObservationEnabled: false
-            )
-        )
-        self.field = field
-        self.probe = probe
-    }
-
-    var body: some View {
-        let value: Int
-        switch field {
-        case .first:
-            value = storage.first
-        case .second:
-            value = storage.second
-        }
-        return Text(verbatim: probe.record(field, value: value))
-    }
-}
-
-@MainActor
-private final class AppleHostingHarness {
-    #if os(iOS)
-    private let window: UIWindow
-    private let controller: UIHostingController<AnyView>
-    #elseif os(macOS)
-    private let window: NSWindow
-    private let controller: NSHostingController<AnyView>
-    #endif
-
-    init<Content: View>(rootView: Content) {
-        #if os(iOS)
-        controller = UIHostingController(rootView: AnyView(rootView))
-        window = UIWindow(
-            frame: CGRect(x: 0, y: 0, width: 320, height: 480)
-        )
-        window.rootViewController = controller
-        window.makeKeyAndVisible()
-        controller.view.setNeedsLayout()
-        controller.view.layoutIfNeeded()
-        #elseif os(macOS)
-        _ = NSApplication.shared
-        controller = NSHostingController(rootView: AnyView(rootView))
-        window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 320, height: 480),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        window.contentViewController = controller
-        window.orderFrontRegardless()
-        controller.view.needsLayout = true
-        controller.view.layoutSubtreeIfNeeded()
-        #endif
-    }
-
-    func removeContent() {
-        controller.rootView = AnyView(EmptyView())
-        #if os(iOS)
-        controller.view.setNeedsLayout()
-        controller.view.layoutIfNeeded()
-        window.rootViewController = nil
-        window.isHidden = true
-        #elseif os(macOS)
-        controller.view.needsLayout = true
-        controller.view.layoutSubtreeIfNeeded()
-        window.contentViewController = nil
-        window.orderOut(nil)
-        #endif
     }
 }
 #endif
