@@ -139,6 +139,47 @@ each projected read; the explicit form remains available when observation must
 begin before a field is read. Both forms avoid runtime reflection and
 build-generated Swift files.
 
+### Demand-driven iOS example
+
+```swift
+import SwiftUI
+import shared
+import KMPObservableBridgeSKIE
+
+@KMPObservable
+extension ArticleViewModel: @retroactive KMPStaticallyObservable {}
+
+struct ArticleScreen: View {
+    @KMPStateObject private var viewModel = ArticleViewModel()
+
+    var body: some View {
+        // The first read creates the typed key path and starts one shared
+        // collector. Kotlin remains the only current-value storage.
+        let state = $viewModel.articleState
+
+        List(state.articles, id: \.title) { article in
+            Text(article.title)
+        }
+        .overlay {
+            if state.isLoading {
+                ProgressView()
+            }
+        }
+    }
+}
+```
+
+Use projected access for demand-driven StateFlow values:
+
+```swift
+let state = $viewModel.articleState  // observed current value
+```
+
+The leading `$` selects the bridge's projected store; it does not create a
+`Binding` for a read-only StateFlow. Writable exported Swift properties still
+use the same projected store to produce a native `Binding`, such as
+`TextField("Search", text: $viewModel.searchText)`.
+
 ### 4. Use native ownership
 
 Own the ViewModel for one SwiftUI identity:

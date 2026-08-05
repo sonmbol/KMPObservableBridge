@@ -2,10 +2,9 @@ import SwiftUI
 import shared
 import KMPObservableBridgeSKIE
 
-@KMPObservable(
-    ArticleViewModel.self,
-    fields: \.articleState
-)
+// No field list is required. A collector starts when `$article.articleState`
+// is first read and is shared by every wrapper observing this ViewModel.
+@KMPObservable
 extension ArticleViewModel: @retroactive KMPStaticallyObservable {}
 
 struct ArticleInjectorExampleView: View {
@@ -18,7 +17,7 @@ struct ArticleInjectorExampleView: View {
     var body: some View {
         NavigationView {
             ArticleContentView(viewModel: article)
-                .navigationTitle("Macro SKIE")
+                .navigationTitle("Demand-Driven SKIE")
         }
     }
 }
@@ -31,10 +30,15 @@ private struct ArticleContentView: View {
     }
 
     var body: some View {
+        // Projected access gives the bridge a compile-time key path. It reads
+        // the authoritative current value directly from Kotlin and lazily
+        // activates observation for this field—without runtime reflection.
+        let state = $article.articleState
+
         ArticleListContent(
-            isLoading: article.articleState.isLoading,
-            error: article.articleState.error,
-            articles: article.articleState.articles.map(ArticleRowModel.init)
+            isLoading: state.isLoading,
+            error: state.error,
+            articles: state.articles.map(ArticleRowModel.init)
         )
     }
 }
@@ -177,7 +181,7 @@ struct ArticleSKIEExampleView_Previews: PreviewProvider {
                     error: nil,
                     articles: articles
                 )
-                .navigationTitle("Macro SKIE")
+                .navigationTitle("Demand-Driven SKIE")
             }
             .previewDisplayName("Articles")
 
