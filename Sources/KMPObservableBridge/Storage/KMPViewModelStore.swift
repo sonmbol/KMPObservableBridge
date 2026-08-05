@@ -102,9 +102,13 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         Property.Element == Property.Value,
         Property.Element: Equatable
     {
-        activateDemandObservation(.equatable(keyPath), for: keyPath)
+        let value = wrappedValue[keyPath: keyPath].value
         trackModernAccess(for: .field(keyPath))
-        return wrappedValue[keyPath: keyPath].value
+        activateDemandObservation(
+            .demandEquatable(keyPath, initialValue: value),
+            for: keyPath
+        )
+        return value
     }
 
     /// Lazily observes a non-equatable current-value async sequence.
@@ -114,9 +118,10 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         Property: AsyncSequence & KMPValueProperty,
         Property.Element == Property.Value
     {
-        activateDemandObservation(.everyEmission(keyPath), for: keyPath)
+        let value = wrappedValue[keyPath: keyPath].value
         trackModernAccess(for: .field(keyPath))
-        return wrappedValue[keyPath: keyPath].value
+        activateDemandObservation(.everyEmission(keyPath), for: keyPath)
+        return value
     }
 
     public subscript<Property>(

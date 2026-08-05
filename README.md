@@ -119,6 +119,9 @@ store, for example `$profile.profileState`. Swift supplies the typed key path
 to the dynamic-member subscript at compile time; the bridge does not use
 reflection or inspect the imported Kotlin declaration. The first read starts
 one shared collector for that field, and unread fields allocate no collector.
+For `Equatable` StateFlow values, duplicate suppression is seeded from the
+exact synchronous value returned to the first body evaluation, so SKIE's
+initial replay does not cause a redundant render pass.
 
 For eager observation, list the fields explicitly:
 

@@ -10,6 +10,7 @@ final class KMPDemandObservationHub<Model: AnyObject> {
         var listeners: [UInt: Listener] = [:]
         var observation: KMPObservation?
         var broadcastDepth = 0
+        var pendingAdditions: [UInt: Listener]?
         var pendingRemovals: Set<UInt>?
     }
 
@@ -51,11 +52,19 @@ final class KMPDemandObservationHub<Model: AnyObject> {
             fields[keyPath] = field
             return field
         }()
-        let listenerID = makeListenerID()
-        field.listeners[listenerID] = Listener(
+        let listenerID = makeListenerID(for: field)
+        let listener = Listener(
             notify: notify,
             reportError: reportError
         )
+        if field.broadcastDepth == 0 {
+            field.listeners[listenerID] = listener
+        } else {
+            if field.pendingAdditions == nil {
+                field.pendingAdditions = [:]
+            }
+            field.pendingAdditions?[listenerID] = listener
+        }
 
         if field.observation == nil {
             field.observation = state.startObservation(
@@ -74,12 +83,11 @@ final class KMPDemandObservationHub<Model: AnyObject> {
         }
     }
 
-    private func makeListenerID() -> UInt {
+    private func makeListenerID(for field: Field) -> UInt {
         repeat {
             nextListenerID &+= 1
-        } while fields.values.contains(where: {
-            $0.listeners[nextListenerID] != nil
-        })
+        } while field.listeners[nextListenerID] != nil ||
+            field.pendingAdditions?[nextListenerID] != nil
         return nextListenerID
     }
 
@@ -104,7 +112,16 @@ final class KMPDemandObservationHub<Model: AnyObject> {
         }
         field.broadcastDepth -= 1
 
-        guard field.broadcastDepth == 0, let removals = field.pendingRemovals else {
+        guard field.broadcastDepth == 0 else {
+            return
+        }
+        if let additions = field.pendingAdditions {
+            field.pendingAdditions = nil
+            for (id, listener) in additions {
+                field.listeners[id] = listener
+            }
+        }
+        guard let removals = field.pendingRemovals else {
             return
         }
         field.pendingRemovals = nil
