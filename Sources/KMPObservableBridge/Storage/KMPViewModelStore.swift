@@ -22,8 +22,9 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     private var pendingDependencies: Set<KMPObservationDependency> = []
     private var globalRevision: AnyObject?
     private var projectedGlobalRevision: AnyObject?
-    private var fieldRevisions: [AnyKeyPath: AnyObject] = [:]
+    private var fieldSlots: [AnyKeyPath: KMPFieldObservationSlot] = [:]
     private let modernObservationEnabled: Bool
+    private var demandObservationEnabled = false
 
     convenience init(
         _ wrappedValue: ViewModel,
@@ -96,6 +97,30 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
     /// domain values without exposing the interop container's `.value`.
     public subscript<Property>(
         dynamicMember keyPath: KeyPath<ViewModel, Property>
+    ) -> Property.Value where
+        Property: AsyncSequence & KMPValueProperty,
+        Property.Element == Property.Value,
+        Property.Element: Equatable
+    {
+        activateDemandObservation(.equatable(keyPath), for: keyPath)
+        trackModernAccess(for: .field(keyPath))
+        return wrappedValue[keyPath: keyPath].value
+    }
+
+    /// Lazily observes a non-equatable current-value async sequence.
+    public subscript<Property>(
+        dynamicMember keyPath: KeyPath<ViewModel, Property>
+    ) -> Property.Value where
+        Property: AsyncSequence & KMPValueProperty,
+        Property.Element == Property.Value
+    {
+        activateDemandObservation(.everyEmission(keyPath), for: keyPath)
+        trackModernAccess(for: .field(keyPath))
+        return wrappedValue[keyPath: keyPath].value
+    }
+
+    public subscript<Property>(
+        dynamicMember keyPath: KeyPath<ViewModel, Property>
     ) -> Property.Value where Property: KMPValueProperty {
         trackModernAccess(for: .field(keyPath))
         return wrappedValue[keyPath: keyPath].value
@@ -146,7 +171,10 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         let activeGeneration = generation
 
         switch source {
+        case .demandDriven:
+            demandObservationEnabled = true
         case .staticPlan(let plan):
+            demandObservationEnabled = false
             observations = [
                 plan.observe(
                     wrappedValue,
@@ -165,6 +193,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
                 ),
             ]
         case .keyed(let observe):
+            demandObservationEnabled = false
             observations = [
                 observe(
                     wrappedValue,
@@ -185,6 +214,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
                 ),
             ]
         case .explicit(let explicitStates):
+            demandObservationEnabled = false
             let reportError = makeErrorHandler(
                 generation: activeGeneration
             )
@@ -225,9 +255,52 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
         pendingChange?.cancel()
         pendingChange = nil
         pendingDependencies.removeAll(keepingCapacity: true)
+        demandObservationEnabled = false
+        fieldSlots.values.forEach { $0.cancel() }
         let current = observations
         observations.removeAll(keepingCapacity: false)
         current.forEach { $0.cancel() }
+    }
+
+    private func activateDemandObservation<Sequence: AsyncSequence>(
+        _ state: KMPState<ViewModel>,
+        for keyPath: KeyPath<ViewModel, Sequence>
+    ) {
+        guard demandObservationEnabled else {
+            return
+        }
+        let slot = fieldSlot(for: keyPath)
+        let activeGeneration = generation
+        slot.activate { [weak self] in
+            guard let self else {
+                return .empty
+            }
+            return KMPDemandObservationRegistry.shared.observe(
+                wrappedValue,
+                state: state,
+                notify: { @MainActor [weak self] in
+                    guard
+                        let self,
+                        self.generation == activeGeneration
+                    else {
+                        return
+                    }
+                    self.scheduleChange(.field(keyPath))
+                },
+                reportError: makeErrorHandler(
+                    generation: activeGeneration
+                )
+            )
+        }
+    }
+
+    private func fieldSlot(for keyPath: AnyKeyPath) -> KMPFieldObservationSlot {
+        if let existing = fieldSlots[keyPath] {
+            return existing
+        }
+        let slot = KMPFieldObservationSlot()
+        fieldSlots[keyPath] = slot
+        return slot
     }
 
     private func scheduleChange(
@@ -305,7 +378,7 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
             revision?.value &+= 1
         case .field(let keyPath):
             let revision =
-                fieldRevisions[keyPath] as? KMPObservationRevision
+                fieldSlots[keyPath]?.revision as? KMPObservationRevision
             revision?.value &+= 1
         }
     }
@@ -344,13 +417,14 @@ public final class KMPViewModelStore<ViewModel: AnyObject>: @preconcurrency Obse
                         projectedGlobalRevision = projectedGlobal
                     }
                     _ = projectedGlobal.value
+                    let slot = fieldSlot(for: keyPath)
                     let revision: KMPObservationRevision
                     if let existing =
-                        fieldRevisions[keyPath] as? KMPObservationRevision {
+                        slot.revision as? KMPObservationRevision {
                         revision = existing
                     } else {
                         revision = KMPObservationRevision()
-                        fieldRevisions[keyPath] = revision
+                        slot.revision = revision
                     }
                     _ = revision.value
                 }

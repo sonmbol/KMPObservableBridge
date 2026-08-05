@@ -4,6 +4,8 @@
 /// Kotlin framework. Applications can also write one manually.
 @MainActor
 public protocol KMPStaticallyObservable: AnyObject {
+    static var kmpObservationStrategy: KMPObservationStrategy { get }
+
     static func kmpStartObservation(
         on model: Self,
         notify: @escaping KMPObservationNotify,
@@ -18,6 +20,10 @@ public protocol KMPStaticallyObservable: AnyObject {
 }
 
 public extension KMPStaticallyObservable {
+    static var kmpObservationStrategy: KMPObservationStrategy {
+        .explicit
+    }
+
     /// Compatibility route for manually implemented 1.1 conformances.
     static func kmpStartObservation(
         on model: Self,
@@ -30,6 +36,15 @@ public extension KMPStaticallyObservable {
             reportError: reportError
         )
     }
+}
+
+/// Selects when a statically observable model starts its field collectors.
+public enum KMPObservationStrategy: Sendable {
+    /// Starts the compiler-checked plan when the wrapper is realized.
+    case explicit
+
+    /// Starts each supported field when its projected value is first read.
+    case demandDriven
 }
 
 /// A compile-time-checked collection of observation sources for one model.

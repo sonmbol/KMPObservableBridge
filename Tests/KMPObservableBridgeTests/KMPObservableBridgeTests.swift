@@ -49,6 +49,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         private var currentValue: Element
         private let stream: AsyncStream<Element>
         private let continuation: AsyncStream<Element>.Continuation
+        private(set) var iteratorCount = 0
 
         var value: Element {
             lock.withLock { currentValue }
@@ -69,7 +70,8 @@ final class KMPObservableBridgeTests: XCTestCase {
         }
 
         func makeAsyncIterator() -> AsyncStream<Element>.Iterator {
-            stream.makeAsyncIterator()
+            iteratorCount += 1
+            return stream.makeAsyncIterator()
         }
     }
 
@@ -102,6 +104,23 @@ final class KMPObservableBridgeTests: XCTestCase {
                 notify: notify,
                 reportError: reportError
             )
+        }
+    }
+
+    private final class DemandModel: KMPStaticallyObservable {
+        let first = ValueStream(0)
+        let second = ValueStream(0)
+
+        static var kmpObservationStrategy: KMPObservationStrategy {
+            .demandDriven
+        }
+
+        static func kmpStartObservation(
+            on model: DemandModel,
+            notify: @escaping KMPObservationNotify,
+            reportError: @escaping KMPObservationErrorHandler
+        ) -> KMPObservation {
+            .empty
         }
     }
 
@@ -395,6 +414,63 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         XCTAssertTrue(owned.wrappedValue === ownedModel)
         XCTAssertTrue(observed.wrappedValue === observedModel)
+    }
+
+    func testDemandDrivenStoreStartsOnlyAccessedField() async {
+        let model = DemandModel()
+        let store = KMPViewModelStore(
+            model,
+            source: .demandDriven,
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        var changes = 0
+        let cancellable = store.objectWillChange.sink { changes += 1 }
+
+        XCTAssertEqual(model.first.iteratorCount, 0)
+        XCTAssertEqual(model.second.iteratorCount, 0)
+
+        _ = store.first
+        await settleMainActorTasks()
+        XCTAssertEqual(model.first.iteratorCount, 1)
+        XCTAssertEqual(model.second.iteratorCount, 0)
+
+        model.first.update(1)
+        for _ in 0..<20 where changes == 0 {
+            try? await Task.sleep(nanoseconds: 1_000_000)
+        }
+        XCTAssertEqual(changes, 1)
+        withExtendedLifetime(cancellable) {}
+    }
+
+    func testDemandDrivenStoresShareAccessedFieldCollector() async {
+        let model = DemandModel()
+        let first = KMPViewModelStore(
+            model,
+            source: .demandDriven,
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+        let second = KMPViewModelStore(
+            model,
+            source: .demandDriven,
+            updatePolicy: .immediate,
+            failurePolicy: .ignore,
+            ownsModel: false,
+            modernObservationEnabled: false
+        )
+
+        _ = first.first
+        _ = second.first
+        await settleMainActorTasks()
+
+        XCTAssertEqual(model.first.iteratorCount, 1)
+        XCTAssertEqual(model.second.iteratorCount, 0)
+        withExtendedLifetime((first, second)) {}
     }
 
     func testStaticHubSharesCollectionAndSuppressesDuplicates() async {

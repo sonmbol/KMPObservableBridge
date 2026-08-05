@@ -4,6 +4,7 @@
 /// same Kotlin state concurrently.
 @MainActor
 enum KMPObservationSource<ViewModel: AnyObject> {
+    case demandDriven
     case staticPlan(KMPObservationPlan<ViewModel>)
     case keyed(
         @MainActor (
@@ -19,7 +20,10 @@ enum KMPObservationSource<ViewModel: AnyObject> {
 func kmpStaticObservationSource<ViewModel: KMPStaticallyObservable>(
     for _: ViewModel.Type
 ) -> KMPObservationSource<ViewModel> {
-    .keyed { model, notifyDependency, reportError in
+    guard ViewModel.kmpObservationStrategy == .explicit else {
+        return .demandDriven
+    }
+    return .keyed { model, notifyDependency, reportError in
         ViewModel.kmpStartObservation(
             on: model,
             notifyDependency: notifyDependency,
