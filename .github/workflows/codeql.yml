@@ -1,3 +1,4 @@
+
 # For most projects, this workflow file will not need changing; you simply need
 # to commit it to your repository.
 #
@@ -57,7 +58,7 @@ jobs:
         # your codebase is analyzed, see https://docs.github.com/en/code-security/code-scanning/creating-an-advanced-setup-for-code-scanning/codeql-code-scanning-for-compiled-languages
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     # Add any setup steps before running the `github/codeql-action/init` action.
     # This includes steps like installing compilers or runtimes (`actions/setup-node`
@@ -82,8 +83,8 @@ jobs:
     # "We were unable to automatically build your code", modify the matrix above
     # to set the build mode to "manual" for that language. Then modify this step
     # to build your code.
-    # ℹ️ Command-line programs to run using the OS shell.
-    # 📚 See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
+    # â¹ï¸ Command-line programs to run using the OS shell.
+    # ð See https://docs.github.com/en/actions/using-workflows/workflow-syntax-for-github-actions#jobsjob_idstepsrun
     - name: Run manual build steps
       if: matrix.build-mode == 'manual'
       shell: bash
