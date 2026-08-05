@@ -383,6 +383,11 @@ swift test \
 ./Scripts/check-package-manifests.sh
 ```
 
+The Apple-platform
+[SwiftUI hosting smoke tests](Documentation/SwiftUIHostingTests.md) document
+their Xcode requirement, simulator destinations, runtime fallback coverage,
+render-count probes, and teardown contract.
+
 Build the real integration fixture without forcing the macro target onto the
 iOS SDK:
 
