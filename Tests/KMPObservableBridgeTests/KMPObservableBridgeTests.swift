@@ -525,7 +525,7 @@ final class KMPObservableBridgeTests: XCTestCase {
 
     func testOwnedModelDisposesExactlyOnceAfterBridgeRelease() {
         let model = Model()
-        weak var weakModel = model
+        let weakModel = WeakReference(model)
         var disposalCount = 0
         var bridge: KMPViewModelStore<Model>? = KMPViewModelStore(
             model,
@@ -544,7 +544,7 @@ final class KMPObservableBridgeTests: XCTestCase {
 
         XCTAssertNil(bridge)
         XCTAssertEqual(disposalCount, 1)
-        XCTAssertNotNil(weakModel)
+        XCTAssertNotNil(weakModel.value)
     }
 
     func testBridgeAndModelDeallocateWithoutRetainCycle() {
@@ -823,7 +823,7 @@ final class KMPObservableBridgeTests: XCTestCase {
 
     func testOptionalFlowChildRebindsAndReleasesPreviousChild() async {
         var first: StreamModel? = StreamModel()
-        weak var weakFirst = first
+        let weakFirst = WeakReference(first)
         let second = StreamModel()
         let parent = FlowParentModel(child: first)
         let wrapper = KMPOptionalChildObject(
@@ -839,7 +839,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         await settleMainActorTasks()
 
         XCTAssertTrue(wrapper.wrappedValue === second)
-        XCTAssertNil(weakFirst)
+        XCTAssertNil(weakFirst.value)
     }
 
     func testOptionalFlowChildSupportsNil() async {
@@ -864,7 +864,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         let secondChild = StreamModel()
         var firstParent: FlowParentModel? = FlowParentModel(child: firstChild)
         let secondParent = FlowParentModel(child: secondChild)
-        weak var weakFirstParent = firstParent
+        let weakFirstParent = WeakReference(firstParent)
         let store = KMPOptionalChildStore(
             parent: firstParent!,
             parentState: .asyncSequence(\.childState),
@@ -885,7 +885,7 @@ final class KMPObservableBridgeTests: XCTestCase {
         await settleMainActorTasks()
 
         XCTAssertTrue(store.child === secondChild)
-        XCTAssertNil(weakFirstParent)
+        XCTAssertNil(weakFirstParent.value)
     }
 
     func testProjectedStoreCanBeInjectedWithoutCreatingAnotherStore() {
