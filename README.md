@@ -105,9 +105,25 @@ import KMPObservableBridgeSKIE
 extension SkieSwiftStateFlow: @retroactive KMPValueProperty {}
 ```
 
-### 3. Declare observable fields
+### 3. Enable observation
 
-Place the declaration beside the feature that owns the ViewModel:
+For the smallest setup, attach the macro without arguments:
+
+```swift
+@KMPObservable
+extension ProfileViewModel: @retroactive KMPStaticallyObservable {}
+```
+
+Fields are discovered on demand when they are read through the projected
+store, for example `$profile.profileState`. Swift supplies the typed key path
+to the dynamic-member subscript at compile time; the bridge does not use
+reflection or inspect the imported Kotlin declaration. The first read starts
+one shared collector for that field, and unread fields allocate no collector.
+For `Equatable` StateFlow values, duplicate suppression is seeded from the
+exact synchronous value returned to the first body evaluation, so SKIE's
+initial replay does not cause a redundant render pass.
+
+For eager observation, list the fields explicitly:
 
 ```swift
 @KMPObservable(
@@ -120,9 +136,52 @@ extension ProfileViewModel: @retroactive KMPStaticallyObservable {}
 The fields are ordinary Swift key paths. Renaming a Kotlin export or selecting
 an incompatible property fails at compile time.
 
-Swift macros cannot inspect members of imported Kotlin classes, so fields must
-be listed explicitly. This avoids runtime reflection and build-generated Swift
-files.
+Swift macros cannot enumerate members of imported Kotlin classes. The
+argument-free form solves that limitation through compile-time key paths at
+each projected read; the explicit form remains available when observation must
+begin before a field is read. Both forms avoid runtime reflection and
+build-generated Swift files.
+
+### Demand-driven iOS example
+
+```swift
+import SwiftUI
+import shared
+import KMPObservableBridgeSKIE
+
+@KMPObservable
+extension ArticleViewModel: @retroactive KMPStaticallyObservable {}
+
+struct ArticleScreen: View {
+    @KMPStateObject private var viewModel = ArticleViewModel()
+
+    var body: some View {
+        // The first read creates the typed key path and starts one shared
+        // collector. Kotlin remains the only current-value storage.
+        let state = $viewModel.articleState
+
+        List(state.articles, id: \.title) { article in
+            Text(article.title)
+        }
+        .overlay {
+            if state.isLoading {
+                ProgressView()
+            }
+        }
+    }
+}
+```
+
+Use projected access for demand-driven StateFlow values:
+
+```swift
+let state = $viewModel.articleState  // observed current value
+```
+
+The leading `$` selects the bridge's projected store; it does not create a
+`Binding` for a read-only StateFlow. Writable exported Swift properties still
+use the same projected store to produce a native `Binding`, such as
+`TextField("Search", text: $viewModel.searchText)`.
 
 ### 4. Use native ownership
 

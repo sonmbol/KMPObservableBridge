@@ -30,6 +30,47 @@ public extension KMPState {
         asyncSequence(keyPath, changes: { $0 })
     }
 
+    /// Observes a current-value sequence after seeding duplicate suppression
+    /// from the value synchronously read by the projected store.
+    ///
+    /// SKIE StateFlow replays its current value to every new collector. Without
+    /// this seed, the first projected read would schedule a redundant SwiftUI
+    /// invalidation for a value that the same body evaluation already used.
+    internal static func demandEquatable<Sequence>(
+        _ keyPath: KeyPath<ViewModel, Sequence>,
+        initialValue: Sequence.Element
+    ) -> Self where
+        Sequence: AsyncSequence & KMPValueProperty,
+        Sequence.Element == Sequence.Value,
+        Sequence.Element: Equatable
+    {
+        Self(dependency: .field(keyPath)) { viewModel, notify, reportError in
+            let source = viewModel[keyPath: keyPath]
+            let task = Task { @MainActor in
+                var previous = initialValue
+
+                do {
+                    for try await element in source {
+                        try Task.checkCancellation()
+                        guard previous != element else {
+                            continue
+                        }
+                        previous = element
+                        notify()
+                    }
+                } catch is CancellationError {
+                    // Expected lifecycle termination.
+                } catch {
+                    reportError(error)
+                }
+            }
+
+            return KMPObservation {
+                task.cancel()
+            }
+        }
+    }
+
     /// Invalidates only when a selected value changes.
     static func asyncSequence<
         Sequence: AsyncSequence,

@@ -55,4 +55,42 @@ final class KMPObservableBridgeMacroTests: XCTestCase {
             macros: macros
         )
     }
+
+    func testDemandDrivenObservableExpansion() {
+        assertMacroExpansion(
+            """
+            @KMPObservable
+            extension ProfileViewModel: @retroactive KMPStaticallyObservable {}
+            """,
+            expandedSource: """
+            extension ProfileViewModel: @retroactive KMPStaticallyObservable {
+
+                public static var kmpObservationStrategy: KMPObservationStrategy {
+                    .demandDriven
+                }
+
+                public static var kmpObservationPlan: KMPObservationPlan<ProfileViewModel> {
+                    KMPObservationPlan()
+                }
+
+                public static func kmpStartObservation(
+                    on model: ProfileViewModel,
+                    notify: @escaping KMPObservationNotify,
+                    reportError: @escaping KMPObservationErrorHandler
+                ) -> KMPObservation {
+                    .empty
+                }
+
+                public static func kmpStartObservation(
+                    on model: ProfileViewModel,
+                    notifyDependency: @escaping KMPObservationDependencyNotify,
+                    reportError: @escaping KMPObservationErrorHandler
+                ) -> KMPObservation {
+                    .empty
+                }
+            }
+            """,
+            macros: macros
+        )
+    }
 }

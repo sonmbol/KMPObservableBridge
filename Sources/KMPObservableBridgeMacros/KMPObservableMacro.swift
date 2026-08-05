@@ -31,20 +31,11 @@ public struct KMPObservableMacro: MemberMacro {
             )
             return []
         }
+        let model = extensionDecl.extendedType.trimmedDescription
         guard case .argumentList(let arguments) = node.arguments,
               let modelArgument = arguments.first else {
-            context.diagnose(
-                Diagnostic(
-                    node: Syntax(node),
-                    message: KMPMacroDiagnostic(
-                        message: "@KMPObservable requires ViewModel.self and at least one field."
-                    )
-                )
-            )
-            return []
+            return demandDrivenMembers(for: model)
         }
-
-        let model = extensionDecl.extendedType.trimmedDescription
         let declaredModel = modelArgument.expression.trimmedDescription
         guard declaredModel == "\(model).self" else {
             context.diagnose(
@@ -120,6 +111,40 @@ public struct KMPObservableMacro: MemberMacro {
                         notifyDependency: notifyDependency,
                         reportError: reportError
                     )
+                }
+                """
+            ),
+        ]
+    }
+
+    private static func demandDrivenMembers(
+        for model: String
+    ) -> [DeclSyntax] {
+        [
+            DeclSyntax(
+                stringLiteral: """
+                public static var kmpObservationStrategy: KMPObservationStrategy {
+                    .demandDriven
+                }
+
+                public static var kmpObservationPlan: KMPObservationPlan<\(model)> {
+                    KMPObservationPlan()
+                }
+
+                public static func kmpStartObservation(
+                    on model: \(model),
+                    notify: @escaping KMPObservationNotify,
+                    reportError: @escaping KMPObservationErrorHandler
+                ) -> KMPObservation {
+                    .empty
+                }
+
+                public static func kmpStartObservation(
+                    on model: \(model),
+                    notifyDependency: @escaping KMPObservationDependencyNotify,
+                    reportError: @escaping KMPObservationErrorHandler
+                ) -> KMPObservation {
+                    .empty
                 }
                 """
             ),

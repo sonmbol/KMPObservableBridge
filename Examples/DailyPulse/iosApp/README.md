@@ -21,7 +21,8 @@ iosApp/
 
 | KMP/iOS design | Example |
 | --- | --- |
-| Macro-declared SKIE `StateFlow` | `ArticleSKIEExample.swift` and `OwnershipExamples.swift` |
+| Demand-driven SKIE `StateFlow` | `ArticleSKIEExample.swift` |
+| Explicit eager SKIE fields | `OwnershipExamples.swift` |
 | `StateObject`, `ObservedObject`, environment ownership | `OwnershipExamples.swift` |
 | Writable Kotlin property as SwiftUI `Binding` | `OwnershipExamples.swift` |
 | KMP-NativeCoroutines `NativeFlow` | `NativeCoroutinesExample.swift` |
@@ -52,5 +53,8 @@ variants. These previews use immutable Swift fixtures and do not initialize
 Koin, allocate Kotlin ViewModels, start coroutines, collect flows, or perform
 network requests.
 
-There is no generated Swift source or build-tool plugin. Every ViewModel's
-typed observation plan is declared locally with `@KMPObservable`.
+There is no generated Swift source or build-tool plugin. `ArticleSKIEExample`
+uses argument-free `@KMPObservable` and starts its `articleState` collector on
+the first `$article.articleState` read. `OwnershipExamples` lists fields
+explicitly to demonstrate eager observation. Both modes are compile-time typed
+and use the same ownership wrappers.
